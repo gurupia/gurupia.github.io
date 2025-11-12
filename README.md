@@ -1,1 +1,0 @@
-"# gurupia.github.io" 
