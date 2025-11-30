@@ -232,20 +232,34 @@ class Mascot {
         // Handle Drag and Drop
         const dropZone = document.getElementById('mascot-drop-zone');
         if (dropZone) {
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('dragover');
+            // Prevent default behaviors
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
             });
 
-            dropZone.addEventListener('dragleave', () => {
-                dropZone.classList.remove('dragover');
+            // Highlight drop zone
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('dragover');
+                }, false);
             });
 
+            // Unhighlight drop zone
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('dragover');
+                }, false);
+            });
+
+            // Handle dropped file
             dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                const file = files[0];
 
-                const file = e.dataTransfer.files[0];
                 if (file && file.type.startsWith('image/')) {
                     const reader = new FileReader();
                     reader.onload = (event) => {
@@ -254,7 +268,7 @@ class Mascot {
                     };
                     reader.readAsDataURL(file);
                 }
-            });
+            }, false);
 
             // Allow clicking drop zone to trigger file input
             dropZone.addEventListener('click', () => {
