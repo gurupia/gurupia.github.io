@@ -62,7 +62,7 @@
 
 /* Speech Bubble */
 .speech-bubble {
-  position: fixed;
+  position: absolute;
   background: var(--terminal-bg);
   border: 2px solid var(--primary-color);
   border-radius: 15px;

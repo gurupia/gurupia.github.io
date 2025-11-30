@@ -31,7 +31,10 @@ class Mascot {
             "이제 그만 좀... 🥺",
             "너무 많이 찔렀어! 💢",
             "화났어! 😡",
-            "...무시할래 😑"
+            "...무시할래 😑",
+            "마지막으로 참는다 한 번만 더 찔러봐. 그냥 콱",
+            "Fucking!!",
+            "그만 누르라고 했다...",
         ];
 
         this.init();
@@ -207,7 +210,7 @@ class Mascot {
 
     showSpeechBubble(message) {
         // Remove existing bubble
-        const existing = document.querySelector('.speech-bubble');
+        const existing = this.element.querySelector('.speech-bubble');
         if (existing) {
             existing.remove();
         }
@@ -217,12 +220,13 @@ class Mascot {
         bubble.className = 'speech-bubble';
         bubble.textContent = message;
 
-        const rect = this.element.getBoundingClientRect();
-        bubble.style.left = (rect.left + rect.width / 2) + 'px';
-        bubble.style.top = (rect.top - 50) + 'px';
-        bubble.style.transform = 'translateX(-50%)';
+        // Position relative to mascot (handled by CSS absolute positioning)
+        bubble.style.bottom = '100%';
+        bubble.style.left = '50%';
+        bubble.style.transform = 'translateX(-50%) translateY(-10px)';
+        bubble.style.marginBottom = '10px'; // Spacing
 
-        document.body.appendChild(bubble);
+        this.element.appendChild(bubble);
 
         // Remove after 2 seconds
         setTimeout(() => {
