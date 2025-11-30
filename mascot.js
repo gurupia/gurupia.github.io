@@ -225,8 +225,8 @@ class Mascot {
         // Position relative to mascot (handled by CSS absolute positioning)
         bubble.style.bottom = '100%';
         bubble.style.left = '50%';
-        bubble.style.transform = 'translateX(-50%) translateY(-10px)';
-        bubble.style.marginBottom = '10px'; // Spacing
+        bubble.style.transform = 'translateX(-50%)';
+        bubble.style.marginBottom = '12px'; // Just enough for the arrow (10px) + small gap
 
         this.element.appendChild(bubble);
 
