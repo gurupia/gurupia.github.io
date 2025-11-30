@@ -48,12 +48,15 @@ class Mascot {
         // Load saved character
         const savedImage = localStorage.getItem('mascot-image');
         const savedIsCustom = localStorage.getItem('mascot-is-custom') === 'true';
+        const savedSize = localStorage.getItem('mascot-size') || '64';
 
         if (savedImage) {
             this.updateImage(savedImage, savedIsCustom);
         } else {
             this.updateImage('mascot.png', false);
         }
+
+        this.setSize(savedSize);
 
         // Event listeners
         this.element.addEventListener('click', (e) => this.onClick(e));
@@ -85,11 +88,86 @@ class Mascot {
         }
     }
 
+    setSize(size) {
+        if (this.element) {
+            this.element.style.width = `${size}px`;
+            this.element.style.height = `${size}px`;
+        }
+    }
+
     setupSettings() {
         const btn = document.getElementById('mascot-settings-btn');
         const modal = document.getElementById('mascot-modal');
         const closeBtn = document.getElementById('close-mascot-modal');
         const uploadInput = document.getElementById('mascot-upload');
+        const resetBtn = document.getElementById('reset-mascot');
+        const sizeSlider = document.getElementById('mascot-size');
+
+        if (!btn || !modal) return;
+
+        // Initialize Slider
+        if (sizeSlider) {
+            const savedSize = localStorage.getItem('mascot-size') || '64';
+            sizeSlider.value = savedSize;
+
+            sizeSlider.addEventListener('input', (e) => {
+                const size = e.target.value;
+                this.setSize(size);
+                localStorage.setItem('mascot-size', size);
+            });
+        }
+
+        // Open Modal
+        btn.addEventListener('click', () => {
+            modal.classList.add('show');
+        });
+
+        // Close Modal
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+        });
+
+        // Close on outside click
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+
+        // Handle File Upload
+        if (uploadInput) {
+            uploadInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        this.updateImage(event.target.result, true);
+                        modal.classList.remove('show');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        // Handle Reset
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                this.updateImage('mascot.png', false);
+                this.setSize(64);
+                if (sizeSlider) sizeSlider.value = 64;
+                localStorage.removeItem('mascot-image');
+                localStorage.removeItem('mascot-is-custom');
+                localStorage.removeItem('mascot-size');
+                modal.classList.remove('show');
+            });
+        }
+    }
+
+    onClick(e) {
+        e.stopPropagation();
+        this.clickCount++;
+        const now = Date.now();
+
         // Check for rapid clicks
         if (now - this.lastClickTime < 500) {
             this.clickCount += 2; // Bonus for rapid clicking
