@@ -1,0 +1,12 @@
+[
+    {
+        "title": "Default BGM",
+        "artist": "System",
+        "file": "bgm.mp3"
+    },
+    {
+        "title": "Example Track 2",
+        "artist": "Artist Name",
+        "file": "song2.mp3"
+    }
+]

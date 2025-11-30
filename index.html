@@ -736,6 +736,7 @@
     }
   </style>
   <link rel="stylesheet" href="mascot-styles.css">
+  <link rel="stylesheet" href="music-player.css">
 </head>
 
 <body data-theme="matrix">
@@ -746,6 +747,37 @@
   <button class="mascot-settings-btn" id="mascot-settings-btn" title="Character Settings">
     ⚙️ Settings
   </button>
+
+  <!-- Music Player Toggle Button -->
+  <button class="music-player-btn" id="music-player-btn" title="Music Player">
+    🎵 Music
+  </button>
+
+  <!-- Music Player UI -->
+  <div class="music-player" id="music-player">
+    <div class="player-header">
+      <span>Matrix Player v1.0</span>
+      <button id="close-player">×</button>
+    </div>
+    <div class="player-content">
+      <div class="now-playing">
+        <div class="track-info">
+          <span id="track-title">No Track Selected</span>
+          <span id="track-artist">Unknown Artist</span>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="prev-btn">⏮</button>
+        <button id="play-btn">▶</button>
+        <button id="next-btn">⏭</button>
+      </div>
+      <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.5">
+      <div class="playlist" id="playlist">
+        <!-- Playlist items will be injected here -->
+      </div>
+    </div>
+  </div>
+
   <audio id="bgm-audio" loop>
     <source src="bgm.mp3" type="audio/mpeg">
   </audio>
@@ -1057,6 +1089,7 @@
     setTimeout(typeWriter, 500);
   </script>
   <script src="mascot.js"></script>
+  <script src="music-player.js"></script>
 </body>
 
 </html>
