@@ -1,25 +1,3 @@
-/* Music Player Styles */
-.music-player-btn {
-    position: fixed;
-    top: 20px;
-    right: 140px;
-    /* Left of settings button */
-    z-index: 1000;
-    background: rgba(0, 0, 0, 0.7);
-    border: 1px solid #0f0;
-    color: #0f0;
-    padding: 10px 20px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    transition: all 0.3s;
-    backdrop-filter: blur(5px);
-}
-
-.music-player-btn:hover {
-    background: rgba(0, 255, 0, 0.2);
-    box-shadow: 0 0 10px #0f0;
-}
-
 .music-player {
     position: fixed;
     bottom: 20px;
