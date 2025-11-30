@@ -7,6 +7,224 @@ class Mascot {
         this.vx = (Math.random() - 0.5) * 2;
         this.vy = (Math.random() - 0.5) * 2;
         this.speed = 1.5;
+        this.runningSpeed = 2.5; // Slowed down for readability
+        this.isRunning = false;
+        this.clickCount = 0;
+        this.lastClickTime = 0;
+        this.isCustom = false;
+        this.size = 64; // Default size
+        this.isDisabled = false;
+
+        this.messages = [
+            "찌르지 마!",
+            "아야! 😣",
+            "왜 그래!",
+            "그만해! 🙅",
+            "간지러워!",
+            "놔둬! 😤",
+            "싫어!",
+            "도망가자! 🏃",
+            "못 잡아! 😝",
+            "헤헤 😄"
+        ];
+
+        this.easterEggMessages = [
+            "정말 심심하구나... 😅",
+            "이제 그만 좀... 🥺",
+            "너무 많이 찔렀어! 💢",
+            "화났어! 😡",
+            "...무시할래 😑",
+            "마지막으로 참는다. 한 번만 더 찔러봐.",
+            "Fucking!!",
+            "그만 누르라고 했다...",
+            "마지막 경고!!",
+            "30초후 너의 컴퓨터는 랜섬웨어로 감염될거다. 잘 가~"
+        ];
+
+        this.init();
+    }
+
+    init() {
+        // Create mascot element
+        this.element = document.createElement('div');
+        this.element.className = 'mascot';
+        this.element.style.left = this.x + 'px';
+        this.element.style.top = this.y + 'px';
+        document.body.appendChild(this.element);
+
+        // Load saved character
+        const savedImage = localStorage.getItem('mascot-image');
+        const savedIsCustom = localStorage.getItem('mascot-is-custom') === 'true';
+        const savedSize = parseInt(localStorage.getItem('mascot-size')) || 64;
+        this.isDisabled = localStorage.getItem('mascot-disabled') === 'true';
+
+        if (savedImage) {
+            this.updateImage(savedImage, savedIsCustom);
+        } else {
+            this.updateImage('mascot.png', false);
+        }
+
+        this.setSize(savedSize);
+        this.updateVisibility();
+
+        // Event listeners
+        this.element.addEventListener('click', (e) => this.onClick(e));
+        window.addEventListener('resize', () => this.onResize());
+
+        this.animate();
+        this.setupSettings();
+    }
+
+    updateVisibility() {
+        if (this.isDisabled) {
+            this.element.style.display = 'none';
+        } else {
+            this.element.style.display = 'block';
+        }
+    }
+
+    updateImage(src, isCustom) {
+        this.isCustom = isCustom;
+
+        // Remove existing custom image if any
+        const existingImg = this.element.querySelector('img.custom-mascot-img');
+        if (existingImg) existingImg.remove();
+
+        // Reset background
+        this.element.style.backgroundImage = '';
+        this.element.classList.remove('custom-image');
+
+        if (isCustom) {
+            this.element.classList.add('custom-image');
+
+            // Create img tag for custom images to maintain aspect ratio
+            const img = document.createElement('img');
+            img.className = 'custom-mascot-img';
+            img.src = src;
+            img.style.width = '100%';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.draggable = false;
+
+            // Insert as first child to not mess up appended bubbles
+            this.element.insertBefore(img, this.element.firstChild);
+
+            // Reset animation for custom image
+            this.element.style.animation = 'float 2s ease-in-out infinite';
+        } else {
+            this.element.style.backgroundImage = `url('${src}')`;
+            this.element.style.backgroundSize = '800% 100%';
+            this.element.style.animation = ''; // Revert to CSS default
+        }
+
+        // Re-apply size to ensure correct dimensions
+        this.setSize(this.size);
+
+        // Save to localStorage
+        if (src.startsWith('data:') || src === 'mascot.png') {
+            localStorage.setItem('mascot-image', src);
+            localStorage.setItem('mascot-is-custom', isCustom);
+        }
+    }
+
+    setSize(size) {
+        this.size = parseInt(size);
+        if (this.element) {
+            this.element.style.width = `${this.size}px`;
+            if (this.isCustom) {
+                this.element.style.height = 'auto';
+            } else {
+                this.element.style.height = `${this.size}px`;
+            }
+        }
+    }
+
+    setupSettings() {
+        const btn = document.getElementById('mascot-settings-btn');
+        const modal = document.getElementById('mascot-modal');
+        const closeBtn = document.getElementById('close-mascot-modal');
+        const uploadInput = document.getElementById('mascot-upload');
+        const resetBtn = document.getElementById('reset-mascot');
+        const sizeSlider = document.getElementById('mascot-size');
+        const disableCheckbox = document.getElementById('mascot-disable');
+
+        if (!btn || !modal) return;
+
+        // Initialize Slider
+        if (sizeSlider) {
+            const savedSize = localStorage.getItem('mascot-size') || '64';
+            sizeSlider.value = savedSize;
+
+            sizeSlider.addEventListener('input', (e) => {
+                const size = e.target.value;
+                this.setSize(size);
+                localStorage.setItem('mascot-size', size);
+            });
+        }
+
+        // Initialize Disable Checkbox
+        if (disableCheckbox) {
+            disableCheckbox.checked = this.isDisabled;
+            disableCheckbox.addEventListener('change', (e) => {
+                this.isDisabled = e.target.checked;
+                this.updateVisibility();
+                localStorage.setItem('mascot-disabled', this.isDisabled);
+            });
+        }
+
+        // Open Modal
+        btn.addEventListener('click', () => {
+            modal.classList.add('show');
+        });
+
+        // Close Modal
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+        });
+
+        // Close on outside click
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+
+        // Handle File Upload
+        if (uploadInput) {
+            uploadInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        this.updateImage(event.target.result, true);
+                        modal.classList.remove('show');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        // Handle Reset
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                this.updateImage('mascot.png', false);
+                this.setSize(64);
+                this.isDisabled = false;
+                this.updateVisibility();
+
+                if (sizeSlider) sizeSlider.value = 64;
+                if (disableCheckbox) disableCheckbox.checked = false;
+
+                localStorage.removeItem('mascot-image');
+                localStorage.removeItem('mascot-is-custom');
+                localStorage.removeItem('mascot-size');
+                localStorage.removeItem('mascot-disabled');
+                modal.classList.remove('show');
+            });
+        }
+    }
+
+    onClick(e) {
         e.stopPropagation();
         this.clickCount++;
         const now = Date.now();
