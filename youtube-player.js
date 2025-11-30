@@ -46,19 +46,35 @@ class YouTubePlayer {
         const url = this.urlInput.value.trim();
         if (!url) return;
 
-        const videoId = this.extractVideoId(url);
-        if (videoId) {
-            this.iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        const result = this.parseUrl(url);
+
+        if (result.type === 'video') {
+            this.iframe.src = `https://www.youtube.com/embed/${result.id}?autoplay=1`;
+        } else if (result.type === 'playlist') {
+            this.iframe.src = `https://www.youtube.com/embed/videoseries?list=${result.id}&autoplay=1`;
         } else {
-            alert('Invalid YouTube URL');
+            alert('Invalid YouTube URL (Video or Playlist)');
         }
     }
 
-    extractVideoId(url) {
-        // Regex to handle standard URLs, Shorts, Embeds, etc.
-        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)\??v?=?|(&v=)|(shorts\/))([^#&?]*).*/;
-        const match = url.match(regExp);
-        return (match && match[9].length == 11) ? match[9] : null;
+    parseUrl(url) {
+        // Check for Playlist first
+        const playlistRegExp = /[?&]list=([^#\&\?]+)/;
+        const playlistMatch = url.match(playlistRegExp);
+
+        if (playlistMatch) {
+            return { type: 'playlist', id: playlistMatch[1] };
+        }
+
+        // Check for Video (Standard, Short, Embed)
+        const videoRegExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)\??v?=?|(&v=)|(shorts\/))([^#&?]*).*/;
+        const videoMatch = url.match(videoRegExp);
+
+        if (videoMatch && videoMatch[9].length == 11) {
+            return { type: 'video', id: videoMatch[9] };
+        }
+
+        return { type: null, id: null };
     }
 
     makeDraggable(element, handle) {
