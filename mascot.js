@@ -94,8 +94,20 @@ setupSettings() {
     const closeBtn = document.getElementById('close-mascot-modal');
     const uploadInput = document.getElementById('mascot-upload');
     const resetBtn = document.getElementById('reset-mascot');
+    const bgmToggle = document.getElementById('bgm-toggle');
+    const bgmAudio = document.getElementById('bgm-audio');
 
     if (!btn || !modal) return;
+
+    // Initialize BGM state
+    const savedBGM = localStorage.getItem('mascot-bgm') === 'true';
+    if (bgmToggle) {
+        bgmToggle.checked = savedBGM;
+        if (savedBGM && bgmAudio) {
+            bgmAudio.volume = 0.5;
+            bgmAudio.play().catch(e => console.log("Autoplay blocked:", e));
+        }
+    }
 
     // Open Modal
     btn.addEventListener('click', () => {
@@ -134,6 +146,21 @@ setupSettings() {
         localStorage.removeItem('mascot-is-custom');
         modal.classList.remove('show');
     });
+
+    // Handle BGM Toggle
+    if (bgmToggle && bgmAudio) {
+        bgmToggle.addEventListener('change', (e) => {
+            const isEnabled = e.target.checked;
+            localStorage.setItem('mascot-bgm', isEnabled);
+
+            if (isEnabled) {
+                bgmAudio.volume = 0.5;
+                bgmAudio.play();
+            } else {
+                bgmAudio.pause();
+            }
+        });
+    }
 }
 
 onClick(e) {
