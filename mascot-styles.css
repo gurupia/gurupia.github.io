@@ -235,11 +235,11 @@
 .mascot.custom-image {
   background-size: contain;
   background-position: center;
-  animation: float 2s ease-in-out infinite !important;
+  animation: float 2s ease-in-out infinite;
 }
 
 .mascot.custom-image.running {
-  animation: float-fast 0.5s ease-in-out infinite !important;
+  animation: float-fast 0.5s ease-in-out infinite;
 }
 
 @keyframes float {
