@@ -635,6 +635,7 @@
   </style>
   <link rel="stylesheet" href="mascot-styles.css">
   <link rel="stylesheet" href="music-player.css">
+  <link rel="stylesheet" href="youtube-player.css">
 </head>
 
 <body data-theme="matrix">
@@ -650,6 +651,30 @@
   <button class="music-player-btn" id="music-player-btn" title="Music Player">
     🎵 Music
   </button>
+
+  <!-- YouTube Player Toggle Button -->
+  <button class="youtube-player-btn" id="youtube-player-btn" title="YouTube Player">
+    📺 YouTube
+  </button>
+
+  <!-- YouTube Player UI -->
+  <div class="youtube-player" id="youtube-player">
+    <div class="youtube-header" id="youtube-header">
+      <span>YouTube Player</span>
+      <button id="close-youtube">×</button>
+    </div>
+    <div class="youtube-content">
+      <div class="input-group">
+        <input type="text" id="youtube-url" placeholder="Paste YouTube URL...">
+        <button id="load-youtube">Load</button>
+      </div>
+      <div class="video-container">
+        <iframe id="youtube-iframe" src="" frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
 
   <!-- Music Player UI -->
   <div class="music-player" id="music-player">
@@ -984,6 +1009,7 @@
   </script>
   <script src="mascot.js"></script>
   <script src="music-player.js"></script>
+  <script src="youtube-player.js"></script>
 </body>
 
 </html>

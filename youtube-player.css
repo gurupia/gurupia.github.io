@@ -1,0 +1,120 @@
+/* YouTube Player Styles */
+.youtube-player-btn {
+    position: fixed;
+    top: 170px;
+    /* Below music player button */
+    right: 20px;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #f00;
+    color: #f00;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s;
+    backdrop-filter: blur(5px);
+    border-radius: 5px;
+}
+
+.youtube-player-btn:hover {
+    background: rgba(255, 0, 0, 0.2);
+    box-shadow: 0 0 10px #f00;
+}
+
+.youtube-player {
+    position: fixed;
+    bottom: 20px;
+    right: 340px;
+    /* Left of music player */
+    width: 400px;
+    height: 300px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid #f00;
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+    z-index: 1000;
+    font-family: 'Courier New', monospace;
+    color: #f00;
+    display: none;
+    flex-direction: column;
+    resize: both;
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 200px;
+}
+
+.youtube-player.show {
+    display: flex;
+}
+
+.youtube-header {
+    padding: 10px;
+    border-bottom: 1px solid #f00;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 0, 0, 0.1);
+    cursor: move;
+    /* Indicates draggable */
+    flex-shrink: 0;
+}
+
+.youtube-header button {
+    background: none;
+    border: none;
+    color: #f00;
+    cursor: pointer;
+    font-size: 1.2em;
+}
+
+.youtube-content {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.input-group {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.input-group input {
+    flex-grow: 1;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #f00;
+    color: #f00;
+    padding: 5px;
+    font-family: inherit;
+}
+
+.input-group button {
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid #f00;
+    color: #f00;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.input-group button:hover {
+    background: rgba(255, 0, 0, 0.3);
+}
+
+.video-container {
+    flex-grow: 1;
+    position: relative;
+    background: #000;
+    width: 100%;
+    height: 100%;
+}
+
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
