@@ -33,14 +33,9 @@ class Mascot {
             "...무시할래 😑"
         ];
 
-        this.init();
-    }
-
-    init() {
         // Create mascot element
         this.element = document.createElement('div');
         this.element.className = 'mascot';
-        this.element.innerHTML = '<img src="mascot.png" alt="Mascot">';
         this.element.style.left = this.x + 'px';
         this.element.style.top = this.y + 'px';
         document.body.appendChild(this.element);
@@ -49,7 +44,6 @@ class Mascot {
         this.element.addEventListener('click', (e) => this.onClick(e));
         window.addEventListener('resize', () => this.onResize());
 
-        // Start animation
         this.animate();
     }
 
