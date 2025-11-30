@@ -1,0 +1,95 @@
+/* Mascot Character Styles */
+.mascot {
+  position: fixed;
+  width: 60px;
+  height: 60px;
+  z-index: 9999;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 0 10px var(--primary-color));
+  pointer-events: auto;
+}
+
+.mascot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mascot.running {
+  animation: bounce 0.3s infinite;
+}
+
+.mascot.flipped {
+  transform: scaleX(-1);
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.mascot.flipped.running {
+  animation: bounce-flipped 0.3s infinite;
+}
+
+@keyframes bounce-flipped {
+  0%, 100% { transform: scaleX(-1) translateY(0); }
+  50% { transform: scaleX(-1) translateY(-5px); }
+}
+
+/* Speech Bubble */
+.speech-bubble {
+  position: fixed;
+  background: var(--terminal-bg);
+  border: 2px solid var(--primary-color);
+  border-radius: 15px;
+  padding: 10px 15px;
+  font-size: 14px;
+  color: var(--primary-color);
+  z-index: 10000;
+  pointer-events: none;
+  box-shadow: 0 0 20px var(--glow-color);
+  animation: bubble-appear 0.3s ease;
+  white-space: nowrap;
+  text-shadow: var(--text-shadow);
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid var(--primary-color);
+}
+
+@keyframes bubble-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.speech-bubble.fade-out {
+  animation: bubble-disappear 0.3s ease forwards;
+}
+
+@keyframes bubble-disappear {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-10px);
+  }
+}
