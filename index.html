@@ -438,7 +438,7 @@
 
     .logo-container img {
       width: 160px;
-      `r`n height: 160px;
+      height: 160px;
       object-fit: contain;
       filter: drop-shadow(0 0 20px var(--glow-color));
       transition: all 0.3s ease;
@@ -755,6 +755,14 @@
       <label>Current Character:</label>
       <div style="display: flex; gap: 10px; margin-bottom: 15px;">
         <button class="btn" id="reset-mascot">Reset to Default</button>
+      </div>
+    </div>
+
+    <div class="mascot-option">
+      <label>Sound Settings:</label>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <input type="checkbox" id="mascot-sound-toggle">
+        <label for="mascot-sound-toggle" style="margin: 0; cursor: pointer;">Enable Voice (TTS)</label>
       </div>
     </div>
 

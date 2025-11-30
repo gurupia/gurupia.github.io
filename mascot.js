@@ -12,6 +12,9 @@ class Mascot {
         this.clickCount = 0;
         this.lastClickTime = 0;
         this.isCustom = false;
+        this.soundEnabled = false;
+        this.synth = window.speechSynthesis;
+        this.voice = null;
 
         this.messages = [
             "찌르지 마!",
@@ -59,6 +62,43 @@ class Mascot {
 
         this.animate();
         this.setupSettings();
+        this.initSpeech();
+    }
+
+    initSpeech() {
+        // Load saved sound setting
+        this.soundEnabled = localStorage.getItem('mascot-sound') === 'true';
+
+        // Load voices
+        const loadVoices = () => {
+            const voices = this.synth.getVoices();
+            // Try to find a Korean voice
+            this.voice = voices.find(v => v.lang.includes('ko')) || voices[0];
+        };
+
+        if (this.synth.onvoiceschanged !== undefined) {
+            this.synth.onvoiceschanged = loadVoices;
+        }
+        loadVoices();
+    }
+
+    speak(text) {
+        if (!this.soundEnabled || !this.synth) return;
+
+        // Cancel previous speech
+        this.synth.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (this.voice) {
+            utterance.voice = this.voice;
+        }
+
+        // Make it sound a bit more like a mascot (higher pitch, faster)
+        utterance.pitch = 1.2;
+        utterance.rate = 1.1;
+        utterance.volume = 0.8;
+
+        this.synth.speak(utterance);
     }
 
     updateImage(src, isCustom) {
@@ -89,12 +129,16 @@ class Mascot {
         const closeBtn = document.getElementById('close-mascot-modal');
         const uploadInput = document.getElementById('mascot-upload');
         const resetBtn = document.getElementById('reset-mascot');
+        const soundToggle = document.getElementById('mascot-sound-toggle');
 
         if (!btn || !modal) return;
 
         // Open Modal
         btn.addEventListener('click', () => {
             modal.classList.add('show');
+            if (soundToggle) {
+                soundToggle.checked = this.soundEnabled;
+            }
         });
 
         // Close Modal
@@ -129,6 +173,18 @@ class Mascot {
             localStorage.removeItem('mascot-is-custom');
             modal.classList.remove('show');
         });
+
+        // Handle Sound Toggle
+        if (soundToggle) {
+            soundToggle.addEventListener('change', (e) => {
+                this.soundEnabled = e.target.checked;
+                localStorage.setItem('mascot-sound', this.soundEnabled);
+
+                if (this.soundEnabled) {
+                    this.speak("목소리가 들리나요?");
+                }
+            });
+        }
     }
 
     onClick(e) {
@@ -161,7 +217,9 @@ class Mascot {
         } else {
             message = this.messages[Math.floor(Math.random() * this.messages.length)];
         }
+
         this.showSpeechBubble(message);
+        this.speak(message);
 
         // Stop running after a while
         setTimeout(() => {
