@@ -62,46 +62,6 @@ class Mascot {
 
         this.animate();
         this.setupSettings();
-        this.initSpeech();
-    }
-
-    initSpeech() {
-        // Load saved sound setting
-        this.soundEnabled = localStorage.getItem('mascot-sound') === 'true';
-
-        // Load voices
-        const loadVoices = () => {
-            const voices = this.synth.getVoices();
-            // Try to find a Korean voice
-            this.voice = voices.find(v => v.lang.includes('ko')) || voices[0];
-        };
-
-        if (this.synth.onvoiceschanged !== undefined) {
-            this.synth.onvoiceschanged = loadVoices;
-        }
-        loadVoices();
-    }
-
-    speak(text) {
-        if (!this.soundEnabled || !this.synth) return;
-
-        // Cancel previous speech
-        this.synth.cancel();
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        if (this.voice) {
-            utterance.voice = this.voice;
-        }
-
-        // Make it sound a bit more like a mascot (higher pitch, faster)
-        utterance.pitch = 1.2;
-        utterance.rate = 1.1;
-        utterance.volume = 0.8;
-
-        this.synth.speak(utterance);
-    }
-
-    updateImage(src, isCustom) {
         this.isCustom = isCustom;
         this.element.style.backgroundImage = `url('${src}')`;
 
