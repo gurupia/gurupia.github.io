@@ -222,138 +222,36 @@
     /* Theme Switcher */
     .theme-switcher {
       position: fixed;
-      top: 20px;
+      top: 10px;
       right: 20px;
-      z-index: 2000;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      z-index: 1000;
+      display: flex;
       gap: 10px;
-      background: var(--terminal-bg);
-      padding: 15px;
-      border-radius: 10px;
-      border: 2px solid var(--primary-color);
-      box-shadow: 0 0 20px var(--glow-color);
-      backdrop-filter: blur(10px);
     }
 
-    .theme-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .theme-btn::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      transition: all 0.3s ease;
-    }
-
-    .theme-btn:hover {
-      transform: scale(1.1);
-      box-shadow: 0 0 15px currentColor;
-    }
-
-    .theme-btn.active {
-      border-color: currentColor;
-      box-shadow: 0 0 20px currentColor;
-    }
-
-    .theme-btn[data-theme="matrix"] {
-      background: #0a0e27;
-      color: #00ff41;
-    }
-
-    .theme-btn[data-theme="matrix"]::before {
-      background: #00ff41;
-      box-shadow: 0 0 10px #00ff41;
-    }
-
-    .theme-btn[data-theme="cyberpunk"] {
-      background: #1a0033;
-      color: #ff00ff;
-    }
-
-    .theme-btn[data-theme="cyberpunk"]::before {
-      background: #ff00ff;
-      box-shadow: 0 0 10px #ff00ff;
-    }
-
-    .theme-btn[data-theme="terminal"] {
-      background: #001a27;
-      color: #00d9ff;
-    }
-
-    .theme-btn[data-theme="terminal"]::before {
-      background: #00d9ff;
-      box-shadow: 0 0 10px #00d9ff;
-    }
-
-    .theme-btn[data-theme="retro"] {
-      background: #1a0f00;
-      color: #ffaa00;
-    }
-
-    .theme-btn[data-theme="retro"]::before {
-      background: #ffaa00;
-      box-shadow: 0 0 10px #ffaa00;
-    }
-
-    .theme-btn[data-theme="monochrome"] {
-      background: #000000;
-      color: #ffffff;
-    }
-
-    .theme-btn[data-theme="monochrome"]::before {
-      background: #ffffff;
-      box-shadow: 0 0 10px #ffffff;
-    }
-
-    .theme-btn[data-theme="grayscale"] {
-      background: #1a1a1a;
-      color: #a0a0a0;
-    }
-
-    .theme-btn[data-theme="grayscale"]::before {
-      background: #a0a0a0;
-      box-shadow: 0 0 10px #a0a0a0;
-    }
-
-    .theme-btn[data-theme="artist"] {
-      background: linear-gradient(135deg, #ff6b9d, #c44569, #ffa502, #ff6348, #a29bfe);
-      color: #ff6b9d;
-    }
-
-    .theme-btn[data-theme="artist"]::before {
-      background: linear-gradient(135deg, #ff6b9d, #ffa502, #a29bfe);
-      box-shadow: 0 0 15px #ff6b9d;
-    }
-
-    .theme-label {
-      position: absolute;
-      bottom: -25px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.7em;
-      white-space: nowrap;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
+    #theme-select {
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid var(--primary-color);
       color: var(--primary-color);
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      backdrop-filter: blur(5px);
+      outline: none;
+      transition: all 0.3s;
     }
 
-    .theme-btn:hover .theme-label {
-      opacity: 1;
+    #theme-select:hover,
+    #theme-select:focus {
+      background: var(--primary-color);
+      color: var(--darker-bg);
+      box-shadow: 0 0 15px var(--primary-color);
+    }
+
+    #theme-select option {
+      background: #000;
+      color: var(--primary-color);
     }
 
     /* Terminal Header */
@@ -810,27 +708,15 @@
 
   <!-- Theme Switcher -->
   <div class="theme-switcher">
-    <button class="theme-btn active" data-theme="matrix" title="Matrix Hacker">
-      <span class="theme-label">Matrix</span>
-    </button>
-    <button class="theme-btn" data-theme="cyberpunk" title="Cyberpunk Neon">
-      <span class="theme-label">Cyberpunk</span>
-    </button>
-    <button class="theme-btn" data-theme="terminal" title="Dark Terminal">
-      <span class="theme-label">Terminal</span>
-    </button>
-    <button class="theme-btn" data-theme="retro" title="Retro Amber">
-      <span class="theme-label">Retro</span>
-    </button>
-    <button class="theme-btn" data-theme="monochrome" title="Monochrome B&W">
-      <span class="theme-label">Monochrome</span>
-    </button>
-    <button class="theme-btn" data-theme="grayscale" title="Grayscale">
-      <span class="theme-label">Grayscale</span>
-    </button>
-    <button class="theme-btn" data-theme="artist" title="Artist Rainbow">
-      <span class="theme-label">Artist</span>
-    </button>
+    <select id="theme-select" title="Select Theme">
+      <option value="matrix">Matrix Hacker</option>
+      <option value="cyberpunk">Cyberpunk Neon</option>
+      <option value="terminal">Dark Terminal</option>
+      <option value="retro">Retro Amber</option>
+      <option value="monochrome">Monochrome B&W</option>
+      <option value="grayscale">Grayscale</option>
+      <option value="artist">Artist Rainbow</option>
+    </select>
   </div>
 
   <div class="container">
@@ -934,21 +820,20 @@
 
   <script>
     // Theme Switcher
-    const themeButtons = document.querySelectorAll('.theme-btn');
+    // Theme Switcher
+    const themeSelect = document.getElementById('theme-select');
     const body = document.body;
 
     // Load saved theme
     const savedTheme = localStorage.getItem('gurupia-theme') || 'matrix';
     body.setAttribute('data-theme', savedTheme);
-    document.querySelector(`.theme-btn[data-theme="${savedTheme}"]`)?.classList.add('active');
+    if (themeSelect) {
+      themeSelect.value = savedTheme;
+    }
 
-    themeButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const theme = btn.getAttribute('data-theme');
-
-        // Update active state
-        themeButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    if (themeSelect) {
+      themeSelect.addEventListener('change', (e) => {
+        const theme = e.target.value;
 
         // Apply theme
         body.setAttribute('data-theme', theme);
@@ -962,7 +847,7 @@
         // Update Giscus theme
         updateGiscusTheme(theme);
       });
-    });
+    }
 
     // Giscus theme mapping
     function updateGiscusTheme(theme) {
