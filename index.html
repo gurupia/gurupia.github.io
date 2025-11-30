@@ -99,6 +99,16 @@
       animation: rainbow 3s linear infinite;
     }
 
+    /* Modern Theme */
+    [data-theme="modern"] {
+      --primary-color: #38bdf8;
+      --secondary-color: #0ea5e9;
+      --dark-bg: #0f172a;
+      --darker-bg: #020617;
+      --terminal-bg: rgba(15, 23, 42, 0.85);
+      --glow-color: rgba(56, 189, 248, 0.5);
+    }
+
     @keyframes rainbow {
       0% {
         background-position: 0% center;
@@ -750,6 +760,7 @@
       <option value="monochrome">Monochrome B&W</option>
       <option value="grayscale">Grayscale</option>
       <option value="artist">Artist Rainbow</option>
+      <option value="modern">Modern Slate</option>
     </select>
   </div>
 
@@ -934,7 +945,8 @@
         retro: '#ffaa00',
         monochrome: '#ffffff',
         grayscale: '#a0a0a0',
-        artist: '#ff6b9d'
+        artist: '#ff6b9d',
+        modern: '#38bdf8'
       };
       matrixColor = colors[theme] || '#00ff41';
     }
