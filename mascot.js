@@ -7,7 +7,7 @@ class Mascot {
         this.vx = (Math.random() - 0.5) * 2;
         this.vy = (Math.random() - 0.5) * 2;
         this.speed = 1.5;
-        this.runningSpeed = 4;
+        this.runningSpeed = 2.5; // Slowed down for readability
         this.isRunning = false;
         this.clickCount = 0;
         this.lastClickTime = 0;
@@ -228,11 +228,11 @@ class Mascot {
 
         this.element.appendChild(bubble);
 
-        // Remove after 2 seconds
+        // Remove after 3 seconds
         setTimeout(() => {
             bubble.classList.add('fade-out');
             setTimeout(() => bubble.remove(), 300);
-        }, 2000);
+        }, 3000);
     }
 
     animate() {
