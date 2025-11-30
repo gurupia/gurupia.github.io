@@ -265,3 +265,29 @@
     transform: translateY(-5px) rotate(-5deg);
   }
 }
+
+/* Drop Zone Styles */
+.drop-zone {
+  margin-top: 15px;
+  border: 2px dashed var(--primary-color);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  color: var(--secondary-color);
+  transition: all 0.3s ease;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+  background: rgba(0, 255, 65, 0.1);
+  border-color: var(--glow-color);
+  box-shadow: 0 0 15px var(--glow-color);
+  color: var(--primary-color);
+}
+
+.drop-zone p {
+  margin: 0;
+  pointer-events: none;
+}
