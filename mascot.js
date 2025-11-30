@@ -11,6 +11,7 @@ class Mascot {
         this.isRunning = false;
         this.clickCount = 0;
         this.lastClickTime = 0;
+        this.isCustom = false;
 
         this.messages = [
             "찌르지 마!",
@@ -33,6 +34,10 @@ class Mascot {
             "...무시할래 😑"
         ];
 
+        this.init();
+    }
+
+    init() {
         // Create mascot element
         this.element = document.createElement('div');
         this.element.className = 'mascot';
@@ -40,11 +45,90 @@ class Mascot {
         this.element.style.top = this.y + 'px';
         document.body.appendChild(this.element);
 
+        // Load saved character
+        const savedImage = localStorage.getItem('mascot-image');
+        const savedIsCustom = localStorage.getItem('mascot-is-custom') === 'true';
+
+        if (savedImage) {
+            this.updateImage(savedImage, savedIsCustom);
+        }
+
         // Event listeners
         this.element.addEventListener('click', (e) => this.onClick(e));
         window.addEventListener('resize', () => this.onResize());
 
         this.animate();
+        this.setupSettings();
+    }
+
+    updateImage(src, isCustom) {
+        this.isCustom = isCustom;
+        this.element.style.backgroundImage = `url('${src}')`;
+
+        if (isCustom) {
+            this.element.classList.add('custom-image');
+            this.element.style.backgroundSize = 'contain';
+            // Reset animation for custom image
+            this.element.style.animation = 'float 2s ease-in-out infinite';
+        } else {
+            this.element.classList.remove('custom-image');
+            this.element.style.backgroundSize = '800% 100%';
+            this.element.style.animation = ''; // Revert to CSS default
+        }
+
+        // Save to localStorage
+        if (src.startsWith('data:') || src === 'mascot.png') {
+            localStorage.setItem('mascot-image', src);
+            localStorage.setItem('mascot-is-custom', isCustom);
+        }
+    }
+
+    setupSettings() {
+        const btn = document.getElementById('mascot-settings-btn');
+        const modal = document.getElementById('mascot-modal');
+        const closeBtn = document.getElementById('close-mascot-modal');
+        const uploadInput = document.getElementById('mascot-upload');
+        const resetBtn = document.getElementById('reset-mascot');
+
+        if (!btn || !modal) return;
+
+        // Open Modal
+        btn.addEventListener('click', () => {
+            modal.classList.add('show');
+        });
+
+        // Close Modal
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('show');
+        });
+
+        // Close on outside click
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+
+        // Handle File Upload
+        uploadInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    this.updateImage(event.target.result, true);
+                    modal.classList.remove('show');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Handle Reset
+        resetBtn.addEventListener('click', () => {
+            this.updateImage('mascot.png', false);
+            localStorage.removeItem('mascot-image');
+            localStorage.removeItem('mascot-is-custom');
+            modal.classList.remove('show');
+        });
     }
 
     onClick(e) {

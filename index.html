@@ -742,6 +742,34 @@
   <!-- Matrix Rain Canvas -->
   <canvas id="matrix-canvas"></canvas>
 
+  <!-- Mascot Settings UI -->
+  <button class="mascot-settings-btn" id="mascot-settings-btn" title="Character Settings">
+    ⚙️ Char
+  </button>
+
+  <div class="mascot-modal" id="mascot-modal">
+    <button class="close-modal" id="close-mascot-modal">×</button>
+    <h3>Character Settings</h3>
+
+    <div class="mascot-option">
+      <label>Current Character:</label>
+      <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button class="btn" id="reset-mascot">Reset to Default</button>
+      </div>
+    </div>
+
+    <div class="mascot-option">
+      <label>Upload Custom Character:</label>
+      <div class="file-input-wrapper">
+        <button class="btn">📂 Choose Image...</button>
+        <input type="file" id="mascot-upload" accept="image/*">
+      </div>
+      <p style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">
+        * Recommended: Square PNG with transparent background
+      </p>
+    </div>
+  </div>
+
   <!-- Theme Switcher -->
   <div class="theme-switcher">
     <button class="theme-btn active" data-theme="matrix" title="Matrix Hacker">
