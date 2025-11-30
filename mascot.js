@@ -67,6 +67,28 @@ class Mascot {
         this.initSpeech();
     }
 
+    updateImage(src, isCustom) {
+        this.isCustom = isCustom;
+        this.element.style.backgroundImage = `url('${src}')`;
+
+        if (isCustom) {
+            this.element.classList.add('custom-image');
+            this.element.style.backgroundSize = 'contain';
+            // Reset animation for custom image
+            this.element.style.animation = 'float 2s ease-in-out infinite';
+        } else {
+            this.element.classList.remove('custom-image');
+            this.element.style.backgroundSize = '800% 100%';
+            this.element.style.animation = ''; // Revert to CSS default
+        }
+
+        // Save to localStorage
+        if (src.startsWith('data:') || src === 'mascot.png') {
+            localStorage.setItem('mascot-image', src);
+            localStorage.setItem('mascot-is-custom', isCustom);
+        }
+    }
+
     setupSettings() {
         const btn = document.getElementById('mascot-settings-btn');
         const modal = document.getElementById('mascot-modal');
