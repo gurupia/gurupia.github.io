@@ -613,6 +613,9 @@ class Mascot {
     }
 
     animate() {
+        // Skip if element is not available
+        if (!this.element) return;
+
         // Update position
         const currentSpeed = this.isRunning ? this.runningSpeed : this.speed;
         this.x += this.vx * (currentSpeed / this.speed);
@@ -667,6 +670,7 @@ class Mascot {
 
     // Collision Detection Methods
     getCenter() {
+        if (!this.element) return { x: this.x, y: this.y };
         const width = this.element.offsetWidth || this.size;
         const height = this.element.offsetHeight || this.size;
         return {
@@ -676,6 +680,7 @@ class Mascot {
     }
 
     getRadius() {
+        if (!this.element) return this.size / 2;
         // Use average of width and height for radius
         const width = this.element.offsetWidth || this.size;
         const height = this.element.offsetHeight || this.size;
@@ -684,6 +689,7 @@ class Mascot {
 
     checkCollisionWith(otherMascot) {
         if (!otherMascot || otherMascot.id === this.id) return false;
+        if (!this.element || !otherMascot.element) return false;
         if (this.isDisabled || otherMascot.isDisabled) return false;
 
         const center1 = this.getCenter();
@@ -700,6 +706,7 @@ class Mascot {
 
     handleCollision(otherMascot) {
         if (!collisionSettings.enabled) return;
+        if (!this.element || !otherMascot || !otherMascot.element) return;
 
         const center1 = this.getCenter();
         const center2 = otherMascot.getCenter();
