@@ -1,4 +1,6 @@
 // Mascot Character System
+let isLoadingMascots = false; // Flag to prevent save during load
+
 class Mascot {
     constructor(id, config = {}) {
         this.id = id;
@@ -132,8 +134,10 @@ class Mascot {
         // Re-apply size to ensure correct dimensions
         this.setSize(this.size);
 
-        // Save to storage
-        saveMascotsToStorage();
+        // Save to storage (but not during initial load)
+        if (!isLoadingMascots) {
+            saveMascotsToStorage();
+        }
     }
 
     setSize(size) {
@@ -816,11 +820,13 @@ function generateMascotId() {
 }
 
 // Add new mascot
-function addMascot(config = {}) {
+function addMascot(config = {}, skipSave = false) {
     const id = config.id || generateMascotId();
     const mascot = new Mascot(id, config);
     mascots.push(mascot);
-    saveMascotsToStorage();
+    if (!skipSave && !isLoadingMascots) {
+        saveMascotsToStorage();
+    }
     return mascot;
 }
 
@@ -870,6 +876,8 @@ function saveMascotsToStorage() {
 
 // Load all mascots from localStorage
 function loadMascotsFromStorage() {
+    isLoadingMascots = true; // Set flag to prevent save during load
+
     // Try to load new format first
     const mascotsDataStr = localStorage.getItem('mascots-data');
 
@@ -877,13 +885,14 @@ function loadMascotsFromStorage() {
         try {
             const mascotsData = JSON.parse(mascotsDataStr);
             mascotsData.forEach(data => {
-                addMascot(data);
+                addMascot(data, true); // Skip save during load
             });
 
             // Select first mascot
             if (mascots.length > 0) {
                 selectedMascotId = mascots[0].id;
             }
+            isLoadingMascots = false; // Reset flag
             return;
         } catch (e) {
             console.error('Failed to load mascots data:', e);
@@ -924,6 +933,8 @@ function loadMascotsFromStorage() {
     if (mascots.length > 0) {
         selectedMascotId = mascots[0].id;
     }
+
+    isLoadingMascots = false; // Reset flag after load complete
 }
 
 // Initialize mascots when page loads
