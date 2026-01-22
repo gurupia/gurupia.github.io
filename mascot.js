@@ -124,7 +124,8 @@ class Mascot {
             this.updateAnimation();
         } else {
             this.element.style.backgroundImage = `url('${src}')`;
-            this.element.style.backgroundSize = '800% 100%';
+            this.element.style.backgroundSize = 'contain';
+            this.element.style.backgroundPosition = 'center';
             this.element.style.animation = ''; // Revert to CSS default
         }
 
