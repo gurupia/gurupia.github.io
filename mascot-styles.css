@@ -9,17 +9,25 @@
   filter: drop-shadow(0 0 10px var(--primary-color));
   pointer-events: auto;
 
-  /* Sprite Animation Setup */
+  /* Single Image Setup (non-sprite) */
   background-image: url('mascot.png');
   background-repeat: no-repeat;
-  background-size: 800% 100%;
-  /* 8 frames total */
-  image-rendering: pixelated;
-  /* Keep pixel art crisp */
+  background-size: contain;
+  background-position: center;
 
-  /* Default Animation (Idle/Walk) */
+  /* Default Animation (Float) */
+  animation: float 2s ease-in-out infinite;
+}
+
+/* Legacy Sprite Animation (for sprite sheet images)
+   To use: replace mascot.png with 8-frame horizontal sprite sheet
+   and change background-size to 800% 100%, animation to walk
+.mascot.sprite-mode {
+  background-size: 800% 100%;
+  image-rendering: pixelated;
   animation: walk 0.8s steps(4) infinite;
 }
+*/
 
 /* Remove img tag styling as we use background-image now */
 .mascot img {
@@ -39,21 +47,21 @@
   /* 0% to 50% covers first 4 frames */
 }
 
-/* Running Animation (Last 4 frames) */
+/* Running Animation (Faster float with shake) */
 .mascot.running {
-  animation: run 0.4s steps(4) infinite;
+  animation: float-fast 0.5s ease-in-out infinite;
 }
 
+/* Legacy Sprite Run Animation (for sprite sheet images)
 @keyframes run {
   from {
     background-position: 50% 0;
   }
-
-  /* Start from 5th frame */
   to {
     background-position: 100% 0;
   }
 }
+*/
 
 .mascot.flipped {
   transform: scaleX(-1);
