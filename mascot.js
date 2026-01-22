@@ -199,6 +199,7 @@ class Mascot {
             // Add mascot items
             mascots.forEach((mascot, index) => {
                 const item = document.createElement('div');
+                item.dataset.id = mascot.id; // Add data-id for targeting
                 item.style.cssText = `
                     padding: 8px;
                     margin: 5px 0;
@@ -215,7 +216,7 @@ class Mascot {
                 item.innerHTML = `
                     <span style="flex: 1;">
                         <strong>Mascot #${index + 1}</strong>
-                        <span style="opacity: 0.7; font-size: 0.9em;"> - ${mascot.size}px ${mascot.isDisabled ? '(Disabled)' : ''}</span>
+                        <span class="size-display" style="opacity: 0.7; font-size: 0.9em;"> - ${mascot.size}px ${mascot.isDisabled ? '(Disabled)' : ''}</span>
                     </span>
                     <button class="btn delete-mascot-btn" data-id="${mascot.id}" style="padding: 3px 8px; font-size: 0.8em;">🗑️</button>
                 `;
@@ -307,14 +308,27 @@ class Mascot {
         // Initialize with current selected mascot
         updateSettingsUI();
 
-        // Size Slider
+        // Size Slider - handle both input (while dragging) and change (on release)
         if (sizeSlider) {
-            sizeSlider.addEventListener('input', (e) => {
+            const handleSizeChange = (e) => {
                 const selectedMascot = getMascotById(selectedMascotId);
                 if (selectedMascot) {
                     selectedMascot.setSize(e.target.value);
-                    saveMascotsToStorage();
+                    // Update the list UI to show new size
+                    const sizeDisplay = document.querySelector(`#mascot-list [data-id="${selectedMascotId}"] .size-display`);
+                    if (sizeDisplay) {
+                        sizeDisplay.textContent = `${selectedMascot.size}px`;
+                    }
                 }
+            };
+
+            sizeSlider.addEventListener('input', handleSizeChange);
+
+            // Save on change (when slider is released)
+            sizeSlider.addEventListener('change', (e) => {
+                handleSizeChange(e);
+                saveMascotsToStorage();
+                updateMascotListUI(); // Refresh list to show updated size
             });
         }
 
