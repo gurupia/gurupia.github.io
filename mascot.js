@@ -169,6 +169,12 @@ class Mascot {
             const selectedMascot = getMascotById(selectedMascotId);
             if (!selectedMascot) return;
 
+            // Debug: track when slider is being reset
+            const currentSliderValue = sizeSlider ? parseInt(sizeSlider.value) : 0;
+            if (currentSliderValue !== selectedMascot.size) {
+                console.log(`[Mascot] updateSettingsUI: slider ${currentSliderValue} -> ${selectedMascot.size}`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
+            }
+
             if (sizeSlider) sizeSlider.value = selectedMascot.size;
             if (disableCheckbox) disableCheckbox.checked = selectedMascot.isDisabled;
             if (noFloatCheckbox) noFloatCheckbox.checked = selectedMascot.isFloatDisabled;
@@ -892,7 +898,11 @@ function saveMascotsToStorage() {
         noFloat: m.isFloatDisabled
     }));
 
-    localStorage.setItem('mascots-data', JSON.stringify(mascotsData));
+    const jsonData = JSON.stringify(mascotsData);
+    localStorage.setItem('mascots-data', jsonData);
+
+    // Debug: verify save immediately
+    console.log('[Mascot] Saved:', mascotsData.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
 }
 
 // Load all mascots from localStorage
@@ -905,6 +915,10 @@ function loadMascotsFromStorage() {
     if (mascotsDataStr) {
         try {
             const mascotsData = JSON.parse(mascotsDataStr);
+
+            // Debug: show loaded data
+            console.log('[Mascot] Loading:', mascotsData.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
+
             mascotsData.forEach(data => {
                 addMascot(data, true); // Skip save during load
             });
@@ -913,6 +927,10 @@ function loadMascotsFromStorage() {
             if (mascots.length > 0) {
                 selectedMascotId = mascots[0].id;
             }
+
+            // Debug: verify loaded sizes
+            console.log('[Mascot] After load:', mascots.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
+
             isLoadingMascots = false; // Reset flag
             return;
         } catch (e) {
