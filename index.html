@@ -914,18 +914,23 @@
       const giscusTheme = giscusThemes[theme] || 'dark';
       const iframe = document.querySelector('iframe.giscus-frame');
 
-      if (iframe) {
-        iframe.contentWindow.postMessage(
-          { giscus: { setConfig: { theme: giscusTheme } } },
-          'https://giscus.app'
-        );
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage(
+            { giscus: { setConfig: { theme: giscusTheme } } },
+            'https://giscus.app'
+          );
+        } catch (e) {
+          // Ignore cross-origin errors - Giscus will handle its own theme
+          console.log('Giscus theme update skipped:', e.message);
+        }
       }
     }
 
-    // Initialize Giscus theme on load
+    // Initialize Giscus theme on load (wait longer for iframe to be ready)
     setTimeout(() => {
       updateGiscusTheme(savedTheme);
-    }, 1000);
+    }, 2000);
 
     // Matrix Rain Effect
     const canvas = document.getElementById('matrix-canvas');
