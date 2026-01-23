@@ -160,6 +160,7 @@ class Mascot {
         const uploadInput = document.getElementById('mascot-upload');
         const resetBtn = document.getElementById('reset-mascot');
         const sizeSlider = document.getElementById('mascot-size');
+        const sizeInput = document.getElementById('mascot-size-input'); // Number input
         const disableCheckbox = document.getElementById('mascot-disable');
         const noFloatCheckbox = document.getElementById('mascot-no-float');
 
@@ -178,6 +179,7 @@ class Mascot {
                     console.log(`[Mascot] updateSettingsUI: slider ${currentSliderValue} -> ${selectedMascot.size}`);
                 }
                 if (sizeSlider) sizeSlider.value = selectedMascot.size;
+                if (sizeInput) sizeInput.value = selectedMascot.size; // Update number input too
             }
 
             if (disableCheckbox) disableCheckbox.checked = selectedMascot.isDisabled;
@@ -327,6 +329,8 @@ class Mascot {
                 if (selectedMascot) {
                     const newSize = parseInt(e.target.value);
                     selectedMascot.setSize(newSize);
+                    // Sync number input
+                    if (sizeInput) sizeInput.value = newSize;
                     // Update the list UI to show new size (inline, without full refresh)
                     const sizeDisplay = document.querySelector(`#mascot-list [data-id="${selectedMascotId}"] .size-display`);
                     if (sizeDisplay) {
@@ -385,6 +389,34 @@ class Mascot {
                         e.target.value = selectedMascot.size;
                         isAdjustingSlider = false;
                     }, 50);
+                }
+            });
+        }
+
+        // Number Input (alternative for Firefox users)
+        if (sizeInput) {
+            sizeInput.addEventListener('input', (e) => {
+                const selectedMascot = getMascotById(selectedMascotId);
+                if (selectedMascot) {
+                    let newSize = parseInt(e.target.value) || 64;
+                    // Clamp to valid range
+                    newSize = Math.max(32, Math.min(1280, newSize));
+                    selectedMascot.setSize(newSize);
+                    // Sync slider
+                    if (sizeSlider) sizeSlider.value = newSize;
+                }
+            });
+
+            sizeInput.addEventListener('change', (e) => {
+                const selectedMascot = getMascotById(selectedMascotId);
+                if (selectedMascot) {
+                    let newSize = parseInt(e.target.value) || 64;
+                    newSize = Math.max(32, Math.min(1280, newSize));
+                    selectedMascot.setSize(newSize);
+                    e.target.value = newSize; // Normalize display
+                    if (sizeSlider) sizeSlider.value = newSize;
+                    saveMascotsToStorage();
+                    console.log(`[Mascot] Size set to ${newSize} via number input, saved.`);
                 }
             });
         }

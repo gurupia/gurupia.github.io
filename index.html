@@ -728,7 +728,12 @@
         <label for="mascot-disable" style="margin: 0; cursor: pointer;">Disable Mascot</label>
       </div>
       <label for="mascot-size">Mascot Size:</label>
-      <input type="range" id="mascot-size" min="32" max="1280" step="8" style="width: 100%;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <input type="range" id="mascot-size" min="32" max="1280" step="8" style="flex: 1;">
+        <input type="number" id="mascot-size-input" min="32" max="1280" step="8" value="64"
+          style="width: 70px; padding: 5px; background: rgba(0,0,0,0.5); border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 3px; text-align: center;">
+        <span style="opacity: 0.7;">px</span>
+      </div>
     </div>
 
 
