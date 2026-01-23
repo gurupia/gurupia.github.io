@@ -269,7 +269,7 @@ async function convertFormat(webmBlob, format) {
     ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
 
     if (format === 'webp') {
-        await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libwebp', '-lossless', '1', '-loop', '0', '-preset', 'default', '-an', '-vsync', '0', 'output.webp');
+        await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libwebp', '-lossless', '0', '-q:v', '90', '-loop', '0', '-preset', 'default', '-an', '-vsync', '0', '-pix_fmt', 'yuva420p', 'output.webp');
         const data = ffmpeg.FS('readFile', 'output.webp');
         const blob = new Blob([data.buffer], { type: 'image/webp' });
         downloadLink.href = URL.createObjectURL(blob);
