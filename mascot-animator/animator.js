@@ -13,18 +13,11 @@ const previewVideo = document.getElementById('previewVideo');
 const downloadLink = document.getElementById('downloadLink');
 const downloadSection = document.getElementById('downloadSection');
 
-let mediaSource = null; // Image or Video element
+let mediaSource = null;
 let isSourceLoaded = false;
 let isVideo = false;
 let time = 0;
 let animationId = null;
-
-// FFmpeg Instance
-const { createFFmpeg, fetchFile } = FFmpeg;
-const ffmpeg = createFFmpeg({
-    log: true,
-    corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
-});
 
 // Settings
 let state = {
@@ -34,7 +27,17 @@ let state = {
     format: 'webp'
 };
 
-// --- Source Loading ---
+// Check for file:// protocol
+const isFileProtocol = window.location.protocol === 'file:';
+
+// FFmpeg Instance
+const { createFFmpeg, fetchFile } = FFmpeg;
+const ffmpeg = createFFmpeg({
+    log: true,
+    corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
+});
+
+// --- Initialization ---
 imgInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -50,8 +53,6 @@ imgInput.addEventListener('change', (e) => {
 loadUrlBtn.addEventListener('click', () => {
     const url = urlInput.value.trim();
     if (!url) return;
-
-    // Simple heuristic extension check, but browser load will be definitive
     if (url.match(/\.(mp4|webm|mov)$/i)) {
         loadVideo(url);
     } else {
@@ -61,7 +62,6 @@ loadUrlBtn.addEventListener('click', () => {
 
 function loadImage(src) {
     if (mediaSource && isVideo) { mediaSource.pause(); mediaSource.remove(); }
-
     mediaSource = new Image();
     mediaSource.crossOrigin = "anonymous";
     mediaSource.src = src;
@@ -78,7 +78,6 @@ function loadImage(src) {
 
 function loadVideo(src) {
     if (mediaSource && isVideo) { mediaSource.pause(); mediaSource.remove(); }
-
     mediaSource = document.createElement('video');
     mediaSource.crossOrigin = "anonymous";
     mediaSource.src = src;
@@ -86,7 +85,6 @@ function loadVideo(src) {
     mediaSource.muted = true;
     mediaSource.autoplay = true;
     mediaSource.playsInline = true;
-
     mediaSource.onloadedmetadata = () => {
         isSourceLoaded = true;
         isVideo = true;
@@ -100,8 +98,6 @@ function loadVideo(src) {
 }
 
 function fitCanvasToSource() {
-    const maxDim = 512;
-    // Keep aspect ratio logic if needed in future
     canvas.width = 512;
     canvas.height = 512;
 }
@@ -120,7 +116,7 @@ ampRange.addEventListener('input', (e) => {
 
 // --- Render Loop ---
 function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height); // Critical for transparency
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (isSourceLoaded && mediaSource) {
         const t = time * state.speed;
@@ -131,13 +127,10 @@ function animate() {
         const cy = canvas.height / 2;
         ctx.translate(cx, cy);
 
-        // --- PROC ANIMS ---
-        // Apply animations to both Image and Video
         switch (state.anim) {
             case 'breath':
                 const scaleB = 1 + Math.sin(t * 0.05) * 0.05 * amp;
                 ctx.scale(1, scaleB);
-                // Center based on source height
                 const h = isVideo ? mediaSource.videoHeight : mediaSource.height;
                 ctx.translate(0, (1 - scaleB) * (h / 2 * (canvas.width * 0.6 / (isVideo ? mediaSource.videoWidth : mediaSource.width))));
                 break;
@@ -197,9 +190,12 @@ let recordedChunks = [];
 recordBtn.addEventListener('click', async () => {
     if (!isSourceLoaded) return alert('Please load an image or video first!');
 
-    // Load FFmpeg if needed (WebP or GIF)
     if (state.format !== 'webm') {
-        if (!ffmpeg.isLoaded()) {
+        if (isFileProtocol) {
+            alert('⚠️ Security Restriction:\nFFmpeg cannot run on file:// protocol because SharedArrayBuffer is blocked.\n\nPlease run a local server (localhost) to use WebP/GIF export.\nUse "Live Server" extension or "python -m http.server".\n\nFalling back to WebM.');
+            state.format = 'webm';
+            exportSelect.value = 'webm';
+        } else if (!ffmpeg.isLoaded()) {
             recordingStatus.textContent = 'Loading FFmpeg Core...';
             try {
                 await ffmpeg.load();
@@ -234,7 +230,6 @@ function startRecording() {
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
         const webmBlob = new Blob(recordedChunks, { type: 'video/webm' });
-
         previewVideo.src = URL.createObjectURL(webmBlob);
 
         if (state.format === 'webm') {
@@ -271,11 +266,9 @@ function resetBtn() {
 
 async function convertFormat(webmBlob, format) {
     if (!ffmpeg.isLoaded()) throw new Error('FFmpeg not loaded');
-
     ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
 
     if (format === 'webp') {
-        // WebP Conversion
         await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libwebp', '-lossless', '1', '-loop', '0', '-preset', 'default', '-an', '-vsync', '0', 'output.webp');
         const data = ffmpeg.FS('readFile', 'output.webp');
         const blob = new Blob([data.buffer], { type: 'image/webp' });
@@ -283,16 +276,13 @@ async function convertFormat(webmBlob, format) {
         downloadLink.download = `mascot_${state.anim}.webp`;
         downloadLink.textContent = '⬇️ Download Animated WebP';
     } else if (format === 'gif') {
-        // GIF Conversion (Palette generation for transparency)
         await ffmpeg.run('-i', 'input.webm', '-vf', 'palettegen=reserve_transparent=1', 'palette.png');
         await ffmpeg.run('-i', 'input.webm', '-i', 'palette.png', '-lavfi', 'paletteuse=alpha_threshold=128', '-gifflags', '-offsetting', 'output.gif');
-
         const data = ffmpeg.FS('readFile', 'output.gif');
         const blob = new Blob([data.buffer], { type: 'image/gif' });
         downloadLink.href = URL.createObjectURL(blob);
         downloadLink.download = `mascot_${state.anim}.gif`;
         downloadLink.textContent = '⬇️ Download Animated GIF';
     }
-
     downloadSection.style.display = 'block';
 }
