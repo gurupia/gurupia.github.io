@@ -5,8 +5,9 @@
   height: 64px;
   z-index: 9999;
   cursor: pointer;
-  transition: transform 0.3s ease;
-  filter: drop-shadow(0 0 10px var(--primary-color));
+  transition: transform 0.3s ease, filter 0.3s ease;
+  filter: none;
+  /* Base state */
   pointer-events: auto;
 
   /* Single Image Setup (non-sprite) */
@@ -17,6 +18,21 @@
 
   /* Default Animation (Float) */
   animation: float 2s ease-in-out infinite;
+
+  /* 3D Tilt Variables */
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+}
+
+/* 3D Effect Class */
+.mascot.effect-3d {
+  filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.5));
+}
+
+.mascot.effect-3d:hover {
+  filter: drop-shadow(0 15px 25px var(--primary-color));
+  transform: translateY(-5px) perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transition: transform 0.1s ease, filter 0.3s ease;
 }
 
 /* Legacy Sprite Animation (for sprite sheet images)

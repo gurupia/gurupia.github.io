@@ -19,6 +19,7 @@ class Mascot {
         this.size = config.size || 64; // Default size
         this.isDisabled = config.disabled || false;
         this.isFloatDisabled = config.noFloat || false;
+        this.is3DEffectEnabled = config.effect3d || false;
         this.currentImage = config.image || 'mascot.png';
 
         this.messages = [
@@ -66,6 +67,8 @@ class Mascot {
 
         // Event listeners
         this.element.addEventListener('click', (e) => this.onClick(e));
+        this.element.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        this.element.addEventListener('mouseleave', () => this.onMouseLeave());
         window.addEventListener('resize', () => this.onResize());
 
         this.animate();
@@ -82,6 +85,39 @@ class Mascot {
         } else {
             this.element.style.display = 'block';
         }
+        this.update3DEffects();
+    }
+
+    update3DEffects() {
+        if (this.is3DEffectEnabled && !this.isDisabled) {
+            this.element.classList.add('effect-3d');
+        } else {
+            this.element.classList.remove('effect-3d');
+            this.element.style.setProperty('--tilt-x', '0deg');
+            this.element.style.setProperty('--tilt-y', '0deg');
+        }
+    }
+
+    onMouseMove(e) {
+        if (!this.is3DEffectEnabled || this.isDisabled) return;
+
+        const rect = this.element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const mouseX = e.clientX - centerX;
+        const mouseY = e.clientY - centerY;
+
+        // Calculate tilt angles (max 20 degrees)
+        const tiltX = (mouseY / (rect.height / 2)) * -20;
+        const tiltY = (mouseX / (rect.width / 2)) * 20;
+
+        this.element.style.setProperty('--tilt-x', `${tiltX}deg`);
+        this.element.style.setProperty('--tilt-y', `${tiltY}deg`);
+    }
+
+    onMouseLeave() {
+        this.element.style.setProperty('--tilt-x', '0deg');
+        this.element.style.setProperty('--tilt-y', '0deg');
     }
 
     updateAnimation() {
@@ -163,6 +199,7 @@ class Mascot {
         const sizeInput = document.getElementById('mascot-size-input'); // Number input
         const disableCheckbox = document.getElementById('mascot-disable');
         const noFloatCheckbox = document.getElementById('mascot-no-float');
+        const effect3dCheckbox = document.getElementById('mascot-effect-3d');
 
         if (!btn || !modal) return;
 
@@ -184,6 +221,7 @@ class Mascot {
 
             if (disableCheckbox) disableCheckbox.checked = selectedMascot.isDisabled;
             if (noFloatCheckbox) noFloatCheckbox.checked = selectedMascot.isFloatDisabled;
+            if (effect3dCheckbox) effect3dCheckbox.checked = selectedMascot.is3DEffectEnabled;
         };
 
         // Function to update mascot list UI
@@ -440,6 +478,18 @@ class Mascot {
                 if (selectedMascot) {
                     selectedMascot.isFloatDisabled = e.target.checked;
                     selectedMascot.updateAnimation();
+                    saveMascotsToStorage();
+                }
+            });
+        }
+
+        // 3D Effect Checkbox
+        if (effect3dCheckbox) {
+            effect3dCheckbox.addEventListener('change', (e) => {
+                const selectedMascot = getMascotById(selectedMascotId);
+                if (selectedMascot) {
+                    selectedMascot.is3DEffectEnabled = e.target.checked;
+                    selectedMascot.update3DEffects();
                     saveMascotsToStorage();
                 }
             });
@@ -978,7 +1028,8 @@ function saveMascotsToStorage() {
         vx: m.vx,
         vy: m.vy,
         disabled: m.isDisabled,
-        noFloat: m.isFloatDisabled
+        noFloat: m.isFloatDisabled,
+        effect3d: m.is3DEffectEnabled
     }));
 
     const jsonData = JSON.stringify(mascotsData);
