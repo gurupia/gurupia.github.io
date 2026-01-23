@@ -349,8 +349,14 @@ class Mascot {
                     selectedMascot.setSize(finalSize);
                     saveMascotsToStorage();
 
-                    // Firefox fix: explicitly set slider value to prevent reset
-                    e.target.value = finalSize;
+                    // Firefox fix: force slider value multiple times
+                    const slider = e.target;
+                    slider.value = finalSize;
+
+                    // Force again after a short delay (Firefox workaround)
+                    setTimeout(() => { slider.value = finalSize; }, 0);
+                    setTimeout(() => { slider.value = finalSize; }, 10);
+                    setTimeout(() => { slider.value = finalSize; }, 50);
 
                     console.log(`[Mascot] Size changed to ${finalSize}, saved.`);
                 }
@@ -361,12 +367,25 @@ class Mascot {
                 }, 100);
             });
 
-            // End adjusting on mouseup/touchend (backup)
-            sizeSlider.addEventListener('mouseup', () => {
-                setTimeout(() => { isAdjustingSlider = false; }, 150);
+            // End adjusting on mouseup/touchend - also preserve slider value
+            sizeSlider.addEventListener('mouseup', (e) => {
+                const selectedMascot = getMascotById(selectedMascotId);
+                if (selectedMascot) {
+                    // Force slider to match mascot size
+                    setTimeout(() => {
+                        e.target.value = selectedMascot.size;
+                        isAdjustingSlider = false;
+                    }, 50);
+                }
             });
-            sizeSlider.addEventListener('touchend', () => {
-                setTimeout(() => { isAdjustingSlider = false; }, 150);
+            sizeSlider.addEventListener('touchend', (e) => {
+                const selectedMascot = getMascotById(selectedMascotId);
+                if (selectedMascot) {
+                    setTimeout(() => {
+                        e.target.value = selectedMascot.size;
+                        isAdjustingSlider = false;
+                    }, 50);
+                }
             });
         }
 
