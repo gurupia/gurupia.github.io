@@ -1,699 +1,191 @@
 // Mascot Character System
-let isLoadingMascots = false; // Flag to prevent save during load
-let isAdjustingSlider = false; // Flag to prevent UI updates during slider adjustment (Firefox fix)
+let isLoadingMascots = false;
+let isAdjustingSlider = false;
+let mascots = [];
+let projectiles = [];
+let selectedMascotId = null;
+const MAX_PROJECTILES = 100;
+const collisionSettings = { enabled: true, strength: 0.8 };
+
+class Projectile {
+    constructor(x, y, vx, vy, type, targetMascot = null) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.type = type;
+        this.targetMascot = targetMascot;
+        this.element = document.createElement('div');
+        this.element.className = `projectile ${type}`;
+        this.element.style.left = x + 'px';
+        this.element.style.top = y + 'px';
+        document.body.appendChild(this.element);
+
+        this.lifeTime = 0;
+        this.maxLifeTime = type === 'flame' ? 30 : 200;
+        this.alive = true;
+    }
+
+    update() {
+        if (!this.alive) return;
+
+        if (this.type === 'missile' && this.targetMascot) {
+            const dx = this.targetMascot.x + this.targetMascot.size / 2 - this.x;
+            const dy = this.targetMascot.y + this.targetMascot.size / 2 - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 5) {
+                this.vx += (dx / dist) * 0.5;
+                this.vy += (dy / dist) * 0.5;
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > 10) {
+                    this.vx = (this.vx / speed) * 10;
+                    this.vy = (this.vy / speed) * 10;
+                }
+                const angle = Math.atan2(this.vy, this.vx);
+                this.element.style.transform = `rotate(${angle + Math.PI / 2}rad)`;
+            }
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+        this.element.style.left = this.x + 'px';
+        this.element.style.top = this.y + 'px';
+
+        this.lifeTime++;
+        if (this.lifeTime > this.maxLifeTime) {
+            this.destroy();
+        }
+
+        // Hit Detection
+        if (this.type !== 'flame' || this.lifeTime % 5 === 0) {
+            mascots.forEach(m => {
+                if (m.isDisabled) return;
+                const dx = this.x - (m.x + m.size / 2);
+                const dy = this.y - (m.y + m.size / 2);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < m.size / 2) {
+                    if (this.type === 'grenade') {
+                        this.explode();
+                    } else {
+                        m.createImpact(this.type === 'flame' ? 'scorch' : 'hole', this.x - m.x, this.y - m.y);
+                        if (this.type !== 'flame') this.destroy();
+                    }
+                }
+            });
+        }
+    }
+
+    explode() {
+        const explosion = document.createElement('div');
+        explosion.className = 'explosion-effect';
+        explosion.style.left = (this.x - 50) + 'px';
+        explosion.style.top = (this.y - 50) + 'px';
+        document.body.appendChild(explosion);
+        setTimeout(() => explosion.remove(), 500);
+
+        mascots.forEach(m => {
+            const dx = this.x - (m.x + m.size / 2);
+            const dy = this.y - (m.y + m.size / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 100) {
+                m.createImpact('scorch', (m.size / 2) + (Math.random() - 0.5) * m.size / 2, (m.size / 2) + (Math.random() - 0.5) * m.size / 2);
+                const pushX = (dx / dist || 0) * -10;
+                const pushY = (dy / dist || 0) * -10;
+                m.vx += pushX;
+                m.vy += pushY;
+            }
+        });
+        this.destroy();
+    }
+
+    destroy() {
+        if (!this.alive) return;
+        this.alive = false;
+        this.element.remove();
+        const idx = projectiles.indexOf(this);
+        if (idx > -1) projectiles.splice(idx, 1);
+    }
+}
 
 class Mascot {
     constructor(id, config = {}) {
         this.id = id;
         this.element = null;
-        this.x = config.x !== undefined ? config.x : Math.random() * (window.innerWidth - 100);
-        this.y = config.y !== undefined ? config.y : Math.random() * (window.innerHeight - 100);
+        this.x = config.x !== undefined ? config.x : 50 + Math.random() * (window.innerWidth - 200);
+        this.y = config.y !== undefined ? config.y : 50 + Math.random() * (window.innerHeight - 200);
         this.vx = config.vx !== undefined ? config.vx : (Math.random() - 0.5) * 2;
         this.vy = config.vy !== undefined ? config.vy : (Math.random() - 0.5) * 2;
         this.speed = 1.5;
-        this.runningSpeed = 2.5; // Slowed down for readability
+        this.runningSpeed = 2.5;
         this.isRunning = false;
         this.clickCount = 0;
         this.lastClickTime = 0;
         this.isCustom = config.isCustom || false;
-        this.size = config.size || 64; // Default size
+        this.size = config.size || 64;
         this.isDisabled = config.disabled || false;
         this.isFloatDisabled = config.noFloat || false;
         this.is3DEffectEnabled = config.effect3d || false;
+        this.isActionModeEnabled = config.actionMode || false;
+        this.weaponType = config.weaponType || 'machinegun';
         this.currentImage = config.image || 'mascot.png';
 
         this.messages = [
-            "찌르지 마!",
-            "아야! 😣",
-            "왜 그래!",
-            "그만해! 🙅",
-            "간지러워!",
-            "놔둬! 😤",
-            "싫어!",
-            "도망가자! 🏃",
-            "못 잡아! 😝",
-            "헤헤 😄"
+            "찌르지 마!", "아야! 😣", "왜 그래!", "그만해! 🙅", "간지러워!",
+            "놔둬! 😤", "싫어!", "도망가자! 🏃", "못 잡아! 😝", "헤헤 😄"
         ];
 
         this.easterEggMessages = [
-            "정말 심심하구나... 😅",
-            "이제 그만 좀... 🥺",
-            "너무 많이 찔렀어! 💢",
-            "화났어! 😡",
-            "...무시할래 😑",
-            "마지막으로 참는다. 한 번만 더 찔러봐.",
-            "Fucking!!",
-            "그만 누르라고 했다...",
-            "마지막 경고!!",
-            "너의 끈기에 감탄했어~"
+            "정말 심심하구나... 😅", "이제 그만 좀... 🥺", "너무 많이 찔렀어! 💢",
+            "화났어! 😡", "...무시할래 😑", "마지막으로 참는다. 한 번만 더 찔러봐.",
+            "Fucking!!", "그만 누르라고 했다...", "마지막 경고!!", "너의 끈기에 감탄했어~"
         ];
 
         this.init();
     }
 
     init() {
-        // Create mascot element
         this.element = document.createElement('div');
         this.element.className = 'mascot';
         this.element.style.left = this.x + 'px';
         this.element.style.top = this.y + 'px';
-        this.element.dataset.mascotId = this.id; // Store ID in element
+        this.element.dataset.mascotId = this.id;
         document.body.appendChild(this.element);
 
-        // Apply saved image and settings
         this.updateImage(this.currentImage, this.isCustom);
         this.setSize(this.size);
         this.updateVisibility();
 
-        // Event listeners
         this.element.addEventListener('click', (e) => this.onClick(e));
+        this.element.addEventListener('mousedown', (e) => {
+            if (this.isActionModeEnabled && e.button === 0) {
+                this.startShooting(e);
+            }
+        });
         this.element.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        this.element.addEventListener('mouseleave', () => this.onMouseLeave());
-        window.addEventListener('resize', () => this.onResize());
 
-        this.animate();
-
-        // Only setup settings UI once (for the first mascot)
-        if (mascots.length === 0) {
-            this.setupSettings();
-        }
+        this.resizeHandler = () => this.onResize();
+        window.addEventListener('resize', this.resizeHandler);
     }
 
-    updateVisibility() {
-        if (this.isDisabled) {
-            this.element.style.display = 'none';
-        } else {
-            this.element.style.display = 'block';
-        }
-        this.update3DEffects();
-    }
-
-    update3DEffects() {
-        if (this.is3DEffectEnabled && !this.isDisabled) {
-            this.element.classList.add('effect-3d');
-        } else {
-            this.element.classList.remove('effect-3d');
-            this.element.style.setProperty('--tilt-x', '0deg');
-            this.element.style.setProperty('--tilt-y', '0deg');
-        }
-    }
-
-    onMouseMove(e) {
-        if (!this.is3DEffectEnabled || this.isDisabled) return;
-
-        const rect = this.element.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const mouseX = e.clientX - centerX;
-        const mouseY = e.clientY - centerY;
-
-        // Calculate tilt angles (max 20 degrees)
-        const tiltX = (mouseY / (rect.height / 2)) * -20;
-        const tiltY = (mouseX / (rect.width / 2)) * 20;
-
-        this.element.style.setProperty('--tilt-x', `${tiltX}deg`);
-        this.element.style.setProperty('--tilt-y', `${tiltY}deg`);
-    }
-
-    onMouseLeave() {
-        this.element.style.setProperty('--tilt-x', '0deg');
-        this.element.style.setProperty('--tilt-y', '0deg');
-    }
-
-    updateAnimation() {
-        if (this.isCustom) {
-            if (this.isFloatDisabled) {
-                this.element.style.animation = 'none';
-            } else {
-                this.element.style.animation = 'float 2s ease-in-out infinite';
-            }
-        } else {
-            this.element.style.animation = ''; // Revert to CSS default (walk)
-        }
-    }
-
-    updateImage(src, isCustom) {
-        this.isCustom = isCustom;
-        this.currentImage = src;
-
-        // Remove existing custom image if any
-        const existingImg = this.element.querySelector('img.custom-mascot-img');
-        if (existingImg) existingImg.remove();
-
-        // Reset background
-        this.element.style.backgroundImage = '';
-        this.element.classList.remove('custom-image');
-
-        if (isCustom) {
-            this.element.classList.add('custom-image');
-            this.element.style.backgroundImage = 'none';
-
-            // Create img tag for custom images to maintain aspect ratio
-            const img = document.createElement('img');
-            img.className = 'custom-mascot-img';
-            img.src = src;
-            img.style.width = '100%';
-            img.style.height = 'auto';
-            img.style.display = 'block';
-            img.draggable = false;
-
-            // Insert as first child to not mess up appended bubbles
-            this.element.insertBefore(img, this.element.firstChild);
-
-            this.updateAnimation();
-        } else {
-            this.element.style.backgroundImage = `url('${src}')`;
-            this.element.style.backgroundSize = 'contain';
-            this.element.style.backgroundPosition = 'center';
-            this.element.style.animation = ''; // Revert to CSS default
-        }
-
-        // Re-apply size to ensure correct dimensions
-        this.setSize(this.size);
-
-        // Save to storage (but not during initial load)
-        if (!isLoadingMascots) {
-            saveMascotsToStorage();
-        }
-    }
-
-    setSize(size) {
-        this.size = parseInt(size);
-        if (this.element) {
-            this.element.style.width = `${this.size}px`;
-            if (this.isCustom) {
-                this.element.style.height = 'auto';
-            } else {
-                this.element.style.height = `${this.size}px`;
-            }
-        }
-    }
-
-    setupSettings() {
-        const btn = document.getElementById('mascot-settings-btn');
-        const modal = document.getElementById('mascot-modal');
-        const closeBtn = document.getElementById('close-mascot-modal');
-        const uploadInput = document.getElementById('mascot-upload');
-        const resetBtn = document.getElementById('reset-mascot');
-        const sizeSlider = document.getElementById('mascot-size');
-        const sizeInput = document.getElementById('mascot-size-input'); // Number input
-        const disableCheckbox = document.getElementById('mascot-disable');
-        const noFloatCheckbox = document.getElementById('mascot-no-float');
-        const effect3dCheckbox = document.getElementById('mascot-effect-3d');
-
-        if (!btn || !modal) return;
-
-        // Function to update UI with selected mascot's settings
-        const updateSettingsUI = () => {
-            const selectedMascot = getMascotById(selectedMascotId);
-            if (!selectedMascot) return;
-
-            // Skip slider update during adjustment (Firefox fix)
-            if (!isAdjustingSlider) {
-                // Debug: track when slider is being reset
-                const currentSliderValue = sizeSlider ? parseInt(sizeSlider.value) : 0;
-                if (currentSliderValue !== selectedMascot.size) {
-                    console.log(`[Mascot] updateSettingsUI: slider ${currentSliderValue} -> ${selectedMascot.size}`);
-                }
-                if (sizeSlider) sizeSlider.value = selectedMascot.size;
-                if (sizeInput) sizeInput.value = selectedMascot.size; // Update number input too
-            }
-
-            if (disableCheckbox) disableCheckbox.checked = selectedMascot.isDisabled;
-            if (noFloatCheckbox) noFloatCheckbox.checked = selectedMascot.isFloatDisabled;
-            if (effect3dCheckbox) effect3dCheckbox.checked = selectedMascot.is3DEffectEnabled;
-        };
-
-        // Function to update mascot list UI
-        const updateMascotListUI = () => {
-            const listContainer = document.getElementById('mascot-list');
-            const countSpan = document.getElementById('mascot-count');
-            const selectedNameSpan = document.getElementById('selected-mascot-name');
-
-            if (!listContainer) return;
-
-            // Update count
-            if (countSpan) {
-                countSpan.textContent = `(${mascots.length} active)`;
-            }
-
-            // Update selected name
-            if (selectedNameSpan) {
-                const index = mascots.findIndex(m => m.id === selectedMascotId);
-                selectedNameSpan.textContent = `Mascot #${index + 1}`;
-            }
-
-            // Clear list
-            listContainer.innerHTML = '';
-
-            // Add mascot items
-            mascots.forEach((mascot, index) => {
-                const item = document.createElement('div');
-                item.dataset.id = mascot.id; // Add data-id for targeting
-                item.style.cssText = `
-                    padding: 8px;
-                    margin: 5px 0;
-                    background: ${mascot.id === selectedMascotId ? 'rgba(0,255,65,0.2)' : 'rgba(0,0,0,0.2)'};
-                    border: 1px solid ${mascot.id === selectedMascotId ? 'var(--primary-color)' : 'transparent'};
-                    border-radius: 5px;
-                    cursor: pointer;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    transition: all 0.3s;
-                `;
-
-                item.innerHTML = `
-                    <span style="flex: 1;">
-                        <strong>Mascot #${index + 1}</strong>
-                        <span class="size-display" style="opacity: 0.7; font-size: 0.9em;"> - ${mascot.size}px ${mascot.isDisabled ? '(Disabled)' : ''}</span>
-                    </span>
-                    <button class="btn delete-mascot-btn" data-id="${mascot.id}" style="padding: 3px 8px; font-size: 0.8em;">🗑️</button>
-                `;
-
-                // Select mascot on click
-                item.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('delete-mascot-btn')) {
-                        selectedMascotId = mascot.id;
-                        updateMascotListUI();
-                        updateSettingsUI();
-                    }
-                });
-
-                // Delete button
-                const deleteBtn = item.querySelector('.delete-mascot-btn');
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (mascots.length > 1) {
-                        removeMascot(mascot.id);
-                        updateMascotListUI();
-                        updateSettingsUI();
-                    } else {
-                        alert('Cannot delete the last mascot!');
-                    }
-                });
-
-                listContainer.appendChild(item);
-            });
-        };
-
-
-
-        // Create mascot list UI elements if they don't exist
-        const createMascotListUI = () => {
-            if (document.getElementById('mascot-list')) return; // Already exists
-
-            const h3 = modal.querySelector('h3');
-            if (!h3) return;
-
-            // Add mascot count to h3
-            if (!document.getElementById('mascot-count')) {
-                const countSpan = document.createElement('span');
-                countSpan.id = 'mascot-count';
-                countSpan.style.fontSize = '0.8em';
-                countSpan.style.opacity = '0.7';
-                h3.appendChild(countSpan);
-            }
-
-            // Create mascot list section
-            const listSectionHTML = `
-                <!-- Mascot List Section -->
-                <div class="mascot-list-section" style="margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="margin: 0; font-weight: bold;">Mascots:</label>
-                        <button class="btn" id="add-mascot-btn" style="padding: 5px 12px; font-size: 0.9em;">➕ Add New</button>
-                    </div>
-                    <div id="mascot-list" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--primary-color); border-radius: 5px; padding: 10px; background: rgba(0,0,0,0.3);">
-                        <!-- Mascot items will be dynamically inserted here -->
-                    </div>
-                </div>
-
-                <!-- Selected Mascot Indicator -->
-                <div style="margin-bottom: 15px; padding: 8px; background: rgba(0,255,65,0.1); border-radius: 5px; border: 1px solid var(--primary-color);">
-                    <strong>Selected:</strong> <span id="selected-mascot-name">Mascot #1</span>
-                </div>
-            `;
-
-            // Insert after h3
-            h3.insertAdjacentHTML('afterend', listSectionHTML);
-
-            // Attach event listener to Add New button
-            const addMascotBtn = document.getElementById('add-mascot-btn');
-            if (addMascotBtn) {
-                addMascotBtn.addEventListener('click', () => {
-                    const newMascot = addMascot({});
-                    selectedMascotId = newMascot.id;
-                    updateMascotListUI();
-                    updateSettingsUI();
-                });
-            }
-
-            // Initial UI update
-            updateMascotListUI();
-        };
-
-        // Create mascot list UI on first call
-        createMascotListUI();
-
-        // Initialize with current selected mascot
-        updateSettingsUI();
-
-        // Size Slider - handle both input (while dragging) and change (on release)
-        // Note: Using global isAdjustingSlider flag defined at top of file
-
-        if (sizeSlider) {
-            const handleSizeChange = (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    const newSize = parseInt(e.target.value);
-                    selectedMascot.setSize(newSize);
-                    // Sync number input
-                    if (sizeInput) sizeInput.value = newSize;
-                    // Update the list UI to show new size (inline, without full refresh)
-                    const sizeDisplay = document.querySelector(`#mascot-list [data-id="${selectedMascotId}"] .size-display`);
-                    if (sizeDisplay) {
-                        sizeDisplay.textContent = ` - ${newSize}px ${selectedMascot.isDisabled ? '(Disabled)' : ''}`;
-                    }
-                }
-            };
-
-            // Start adjusting
-            sizeSlider.addEventListener('mousedown', () => { isAdjustingSlider = true; });
-            sizeSlider.addEventListener('touchstart', () => { isAdjustingSlider = true; });
-
-            sizeSlider.addEventListener('input', handleSizeChange);
-
-            // Save on change (when slider is released)
-            sizeSlider.addEventListener('change', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    const finalSize = parseInt(e.target.value);
-                    selectedMascot.setSize(finalSize);
-                    saveMascotsToStorage();
-
-                    // Firefox fix: force slider value multiple times
-                    const slider = e.target;
-                    slider.value = finalSize;
-
-                    // Force again after a short delay (Firefox workaround)
-                    setTimeout(() => { slider.value = finalSize; }, 0);
-                    setTimeout(() => { slider.value = finalSize; }, 10);
-                    setTimeout(() => { slider.value = finalSize; }, 50);
-
-                    console.log(`[Mascot] Size changed to ${finalSize}, saved.`);
-                }
-
-                // Delay flag reset
-                setTimeout(() => {
-                    isAdjustingSlider = false;
-                }, 100);
-            });
-
-            // End adjusting on mouseup/touchend - also preserve slider value
-            sizeSlider.addEventListener('mouseup', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    // Force slider to match mascot size
-                    setTimeout(() => {
-                        e.target.value = selectedMascot.size;
-                        isAdjustingSlider = false;
-                    }, 50);
-                }
-            });
-            sizeSlider.addEventListener('touchend', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    setTimeout(() => {
-                        e.target.value = selectedMascot.size;
-                        isAdjustingSlider = false;
-                    }, 50);
-                }
-            });
-        }
-
-        // Number Input (alternative for Firefox users)
-        if (sizeInput) {
-            sizeInput.addEventListener('input', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    let newSize = parseInt(e.target.value) || 64;
-                    // Clamp to valid range
-                    newSize = Math.max(32, Math.min(1280, newSize));
-                    selectedMascot.setSize(newSize);
-                    // Sync slider
-                    if (sizeSlider) sizeSlider.value = newSize;
-                }
-            });
-
-            sizeInput.addEventListener('change', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    let newSize = parseInt(e.target.value) || 64;
-                    newSize = Math.max(32, Math.min(1280, newSize));
-                    selectedMascot.setSize(newSize);
-                    e.target.value = newSize; // Normalize display
-                    if (sizeSlider) sizeSlider.value = newSize;
-                    saveMascotsToStorage();
-                    console.log(`[Mascot] Size set to ${newSize} via number input, saved.`);
-                }
-            });
-        }
-
-        // Disable Checkbox
-        if (disableCheckbox) {
-            disableCheckbox.addEventListener('change', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    selectedMascot.isDisabled = e.target.checked;
-                    selectedMascot.updateVisibility();
-                    saveMascotsToStorage();
-                }
-            });
-        }
-
-        // No Float Checkbox
-        if (noFloatCheckbox) {
-            noFloatCheckbox.addEventListener('change', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    selectedMascot.isFloatDisabled = e.target.checked;
-                    selectedMascot.updateAnimation();
-                    saveMascotsToStorage();
-                }
-            });
-        }
-
-        // 3D Effect Checkbox
-        if (effect3dCheckbox) {
-            effect3dCheckbox.addEventListener('change', (e) => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    selectedMascot.is3DEffectEnabled = e.target.checked;
-                    selectedMascot.update3DEffects();
-                    saveMascotsToStorage();
-                }
-            });
-        }
-
-        // Open Modal
-        btn.addEventListener('click', () => {
-            updateSettingsUI();
-            updateMascotListUI(); // Update list when opening
-            modal.classList.add('show');
-        });
-
-        // Add New Mascot button
-        const addMascotBtn = document.getElementById('add-mascot-btn');
-        if (addMascotBtn) {
-            addMascotBtn.addEventListener('click', () => {
-                const newMascot = addMascot({});
-                selectedMascotId = newMascot.id;
-                updateMascotListUI();
-                updateSettingsUI();
-            });
-        }
-
-
-        // Close Modal
-        closeBtn.addEventListener('click', () => {
-            modal.classList.remove('show');
-        });
-
-        // Close on outside click
-        window.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('show');
-            }
-        });
-
-        // Handle File Upload
-        if (uploadInput) {
-            uploadInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const selectedMascot = getMascotById(selectedMascotId);
-                        if (selectedMascot) {
-                            selectedMascot.updateImage(event.target.result, true);
-                            modal.classList.remove('show');
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-        }
-
-        // Handle Drag and Drop
-        const dropZone = document.getElementById('mascot-drop-zone');
-        if (dropZone) {
-            // Prevent default behaviors
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }, false);
-            });
-
-            // Highlight drop zone
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropZone.addEventListener(eventName, () => {
-                    dropZone.classList.add('dragover');
-                }, false);
-            });
-
-            // Unhighlight drop zone
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, () => {
-                    dropZone.classList.remove('dragover');
-                }, false);
-            });
-
-            // Handle dropped file
-            dropZone.addEventListener('drop', (e) => {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-                const file = files[0];
-
-                if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const selectedMascot = getMascotById(selectedMascotId);
-                        if (selectedMascot) {
-                            selectedMascot.updateImage(event.target.result, true);
-                            modal.classList.remove('show');
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            }, false);
-
-            // Allow clicking drop zone to trigger file input
-            dropZone.addEventListener('click', () => {
-                if (uploadInput) uploadInput.click();
-            });
-        }
-
-        // Handle Reset
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-                const selectedMascot = getMascotById(selectedMascotId);
-                if (selectedMascot) {
-                    selectedMascot.updateImage('mascot.png', false);
-                    selectedMascot.setSize(64);
-                    selectedMascot.isDisabled = false;
-                    selectedMascot.isFloatDisabled = false;
-                    selectedMascot.updateVisibility();
-
-                    updateSettingsUI();
-                    saveMascotsToStorage();
-                    modal.classList.remove('show');
-                }
-            });
-        }
-
-        // Collision Settings UI
-        // Create collision settings section if it doesn't exist
-        const createCollisionSettingsUI = () => {
-            if (document.getElementById('collision-settings-section')) return;
-
-            const collisionSection = document.createElement('div');
-            collisionSection.id = 'collision-settings-section';
-            collisionSection.className = 'mascot-option';
-            collisionSection.style.borderTop = '1px solid var(--primary-color)';
-            collisionSection.style.paddingTop = '15px';
-            collisionSection.style.marginTop = '15px';
-
-            collisionSection.innerHTML = `
-                <h4 style="color: var(--primary-color); margin-bottom: 10px;">⚡ Collision Settings</h4>
-                
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <input type="checkbox" id="collision-enabled" ${collisionSettings.enabled ? 'checked' : ''}>
-                    <label for="collision-enabled" style="margin: 0; cursor: pointer;">Enable Collisions</label>
-                </div>
-
-                <div style="margin-bottom: 10px;">
-                    <label for="collision-strength">Collision Strength: <span id="collision-strength-value">${collisionSettings.strength}</span></label>
-                    <input type="range" id="collision-strength" min="0" max="1" step="0.1" value="${collisionSettings.strength}" style="width: 100%;">
-                </div>
-
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <input type="checkbox" id="collision-messages" ${collisionSettings.showMessages ? 'checked' : ''}>
-                    <label for="collision-messages" style="margin: 0; cursor: pointer; font-size: 0.9em;">Show Collision Messages</label>
-                </div>
-            `;
-
-            // Insert before the last mascot-option (upload section)
-            const uploadSection = modal.querySelector('.mascot-option:last-child');
-            if (uploadSection) {
-                uploadSection.parentNode.insertBefore(collisionSection, uploadSection);
-            }
-
-            // Attach event listeners
-            const enabledCheckbox = document.getElementById('collision-enabled');
-            const strengthSlider = document.getElementById('collision-strength');
-            const strengthValue = document.getElementById('collision-strength-value');
-            const messagesCheckbox = document.getElementById('collision-messages');
-
-            if (enabledCheckbox) {
-                enabledCheckbox.addEventListener('change', (e) => {
-                    collisionSettings.enabled = e.target.checked;
-                    localStorage.setItem('collision-enabled', collisionSettings.enabled);
-                });
-            }
-
-            if (strengthSlider && strengthValue) {
-                strengthSlider.addEventListener('input', (e) => {
-                    collisionSettings.strength = parseFloat(e.target.value);
-                    strengthValue.textContent = collisionSettings.strength.toFixed(1);
-                    localStorage.setItem('collision-strength', collisionSettings.strength);
-                });
-            }
-
-            if (messagesCheckbox) {
-                messagesCheckbox.addEventListener('change', (e) => {
-                    collisionSettings.showMessages = e.target.checked;
-                    localStorage.setItem('collision-messages', collisionSettings.showMessages);
-                });
-            }
-        };
-
-        // Create collision settings UI on first modal open
-        createCollisionSettingsUI();
+    destroy() {
+        if (this.element) this.element.remove();
+        if (this.shootInterval) clearInterval(this.shootInterval);
+        window.removeEventListener('resize', this.resizeHandler);
+        this.element = null;
     }
 
     onClick(e) {
         e.stopPropagation();
+        if (this.isActionModeEnabled) {
+            if (!this.shootInterval) this.fireWeapon();
+            return;
+        }
+
         this.clickCount++;
         const now = Date.now();
-
-        // Check for rapid clicks
-        if (now - this.lastClickTime < 500) {
-            this.clickCount += 2; // Bonus for rapid clicking
-        }
+        if (now - this.lastClickTime < 500) this.clickCount += 2;
         this.lastClickTime = now;
 
-        // Run away from click
         const rect = this.element.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
@@ -704,416 +196,584 @@ class Mascot {
 
         this.isRunning = true;
         this.element.classList.add('running');
+        this.updateAnimation();
 
-        // Show message
-        let message;
-        if (this.clickCount > 20) {
-            message = this.easterEggMessages[Math.floor(Math.random() * this.easterEggMessages.length)];
-        } else {
-            message = this.messages[Math.floor(Math.random() * this.messages.length)];
-        }
+        let message = (this.clickCount > 20)
+            ? this.easterEggMessages[Math.floor(Math.random() * this.easterEggMessages.length)]
+            : this.messages[Math.floor(Math.random() * this.messages.length)];
 
         this.showSpeechBubble(message);
 
-        // Stop running after a while
         setTimeout(() => {
+            if (!this.element) return;
             this.isRunning = false;
             this.element.classList.remove('running');
             this.vx = (Math.random() - 0.5) * 2;
             this.vy = (Math.random() - 0.5) * 2;
+            this.updateAnimation();
         }, 2000);
     }
 
-    showSpeechBubble(message) {
-        // Remove existing bubble
-        const existing = this.element.querySelector('.speech-bubble');
-        if (existing) {
-            existing.remove();
-        }
+    updateVisibility() {
+        if (!this.element) return;
+        this.element.style.display = this.isDisabled ? 'none' : 'block';
+        this.update3DEffects();
+    }
 
-        // Create new bubble
+    update3DEffects() {
+        if (!this.element) return;
+        if (this.is3DEffectEnabled && !this.isDisabled) {
+            this.element.classList.add('effect-3d');
+        } else {
+            this.element.classList.remove('effect-3d');
+            this.element.style.setProperty('--tilt-x', '0deg');
+            this.element.style.setProperty('--tilt-y', '0deg');
+        }
+    }
+
+    onMouseMove(e) {
+        if (!this.is3DEffectEnabled || this.isDisabled || !this.element) return;
+        const rect = this.element.getBoundingClientRect();
+        const mouseX = e.clientX - (rect.left + rect.width / 2);
+        const mouseY = e.clientY - (rect.top + rect.height / 2);
+        const tiltX = (mouseY / (rect.height / 2)) * -20;
+        const tiltY = (mouseX / (rect.width / 2)) * 20;
+        this.element.style.setProperty('--tilt-x', `${tiltX}deg`);
+        this.element.style.setProperty('--tilt-y', `${tiltY}deg`);
+    }
+
+    onMouseLeave() {
+        if (!this.element) return;
+        this.element.style.setProperty('--tilt-x', '0deg');
+        this.element.style.setProperty('--tilt-y', '0deg');
+    }
+
+    updateAnimation() {
+        if (!this.element) return;
+        if (this.isCustom) {
+            this.element.style.animation = this.isFloatDisabled ? 'none' : 'float 2s ease-in-out infinite';
+        } else {
+            this.element.style.animation = '';
+        }
+        // Force dispersion on update if overlapping or just created
+        if (Math.random() < 0.05) {
+            this.vx += (Math.random() - 0.5) * 0.1;
+            this.vy += (Math.random() - 0.5) * 0.1;
+        }
+    }
+
+    startShooting(e) {
+        if (this.shootInterval) return;
+        this.fireWeapon();
+        const rate = (this.weaponType === 'machinegun') ? 100 : ((this.weaponType === 'flamethrower') ? 80 : 0);
+        if (rate > 0) this.shootInterval = setInterval(() => this.fireWeapon(), rate);
+    }
+
+    stopShooting() {
+        if (this.shootInterval) {
+            clearInterval(this.shootInterval);
+            this.shootInterval = null;
+        }
+    }
+
+    setActionMode(enabled) {
+        this.isActionModeEnabled = enabled;
+        this.stopShooting();
+        if (this.element) {
+            const sec = document.getElementById('weapon-selection');
+            if (selectedMascotId === this.id && sec) {
+                sec.style.display = enabled ? 'block' : 'none';
+            }
+        }
+        this.updateVisibility();
+    }
+
+    setWeaponType(type) {
+        const wasShooting = !!this.shootInterval;
+        if (wasShooting) this.stopShooting();
+        this.weaponType = type;
+        // If it was shooting, we don't necessarily restart automatically 
+        // because it depends on mouse state, but usually changing weapon 
+        // in UI is enough to reset.
+    }
+
+    fireWeapon() {
+        if (!this.element || !this.isActionModeEnabled || this.isDisabled) {
+            this.stopShooting();
+            return;
+        }
+        const rect = this.element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        switch (this.weaponType) {
+            case 'machinegun': this.fireBullet(centerX, centerY); break;
+            case 'shotgun': for (let i = -2; i <= 2; i++) this.fireBullet(centerX, centerY, i * 0.2); break;
+            case 'flamethrower': this.fireFlame(centerX, centerY); break;
+            case 'grenade': this.fireGrenade(centerX, centerY); break;
+            case 'missile': this.fireMissile(centerX, centerY); break;
+        }
+    }
+
+    fireBullet(x, y, angleOffset = 0) {
+        const angle = (Math.random() - 0.5) * 0.1 + angleOffset;
+        const vx = Math.cos(angle - Math.PI / 2) * 15;
+        const vy = Math.sin(angle - Math.PI / 2) * 15;
+        projectiles.push(new Projectile(x, y, vx, vy, 'bullet'));
+    }
+
+    fireFlame(x, y) {
+        const angle = (Math.random() - 0.5) * 0.5 - Math.PI / 2;
+        const speed = 5 + Math.random() * 5;
+        projectiles.push(new Projectile(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 'flame'));
+    }
+
+    fireGrenade(x, y) {
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.2;
+        projectiles.push(new Projectile(x, y, Math.cos(angle) * 8, Math.sin(angle) * 8, 'grenade'));
+    }
+
+    fireMissile(x, y) {
+        const others = mascots.filter(m => m !== this && !m.isDisabled);
+        const target = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
+        projectiles.push(new Projectile(x, y, 0, -5, 'missile', target));
+    }
+
+    createImpact(type, x, y) {
+        if (!this.element) return;
+        const mark = document.createElement('div');
+        mark.className = `impact-mark impact-${type}`;
+        mark.style.left = x + 'px';
+        mark.style.top = y + 'px';
+        this.element.appendChild(mark);
+        setTimeout(() => { if (mark.parentElement) mark.remove(); }, 3000);
+    }
+
+    showSpeechBubble(message) {
+        if (!this.element) return;
+        const existing = this.element.querySelector('.speech-bubble');
+        if (existing) existing.remove();
         const bubble = document.createElement('div');
         bubble.className = 'speech-bubble';
         bubble.textContent = message;
-
-        // Position relative to mascot (handled by CSS absolute positioning)
         bubble.style.bottom = '100%';
         bubble.style.left = '50%';
         bubble.style.transform = 'translateX(-50%)';
-        bubble.style.marginBottom = '12px'; // Just enough for the arrow (10px) + small gap
-
+        bubble.style.marginBottom = '12px';
         this.element.appendChild(bubble);
-
-        // Remove after 3 seconds
         setTimeout(() => {
+            if (!bubble.parentElement) return;
             bubble.classList.add('fade-out');
-            setTimeout(() => bubble.remove(), 300);
+            setTimeout(() => { if (bubble.parentElement) bubble.remove(); }, 300);
         }, 3000);
     }
 
-    animate() {
-        // Skip if element is not available
+    updateImage(src, isCustom) {
         if (!this.element) return;
-
-        // Update position
-        const currentSpeed = this.isRunning ? this.runningSpeed : this.speed;
-        this.x += this.vx * (currentSpeed / this.speed);
-        this.y += this.vy * (currentSpeed / this.speed);
-
-        // Bounce off edges with dynamic size
-        // Use offsetWidth/Height to handle auto-height correctly
-        const width = this.element.offsetWidth || this.size;
-        const height = this.element.offsetHeight || this.size;
-
-        const maxX = window.innerWidth - width;
-        const maxY = window.innerHeight - height;
-
-        if (this.x < 0 || this.x > maxX) {
-            this.vx *= -1;
-            this.x = Math.max(0, Math.min(maxX, this.x));
-        }
-        if (this.y < 0 || this.y > maxY) {
-            this.vy *= -1;
-            this.y = Math.max(0, Math.min(maxY, this.y));
-        }
-
-        // Check collisions with other mascots
-        checkAllCollisions();
-
-        // Flip direction
-        if (this.vx < 0) {
-            this.element.classList.add('flipped');
+        this.isCustom = isCustom;
+        this.currentImage = src;
+        const existingImg = this.element.querySelector('img.custom-mascot-img');
+        if (existingImg) existingImg.remove();
+        this.element.style.backgroundImage = '';
+        this.element.classList.remove('custom-image');
+        if (isCustom) {
+            this.element.classList.add('custom-image');
+            const img = document.createElement('img');
+            img.className = 'custom-mascot-img';
+            img.src = src;
+            img.style.width = '100%';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.draggable = false;
+            this.element.insertBefore(img, this.element.firstChild);
         } else {
-            this.element.classList.remove('flipped');
+            this.element.style.backgroundImage = `url('${src}')`;
+            this.element.style.backgroundSize = 'contain';
+            this.element.style.backgroundPosition = 'center';
         }
+        this.setSize(this.size);
+        this.updateAnimation();
+        if (!isLoadingMascots) saveMascotsToStorage();
+    }
 
-        // Random direction change
+    setSize(size) {
+        this.size = parseInt(size);
+        if (this.element) {
+            this.element.style.width = `${this.size}px`;
+            this.element.style.height = this.isCustom ? 'auto' : `${this.size}px`;
+        }
+    }
+
+    updatePosition() {
+        if (!this.element) return;
+        const curSpd = this.isRunning ? this.runningSpeed : this.speed;
+        this.x += this.vx * (curSpd / this.speed);
+        this.y += this.vy * (curSpd / this.speed);
+
+        const w = (this.element ? this.element.offsetWidth : this.size) || this.size;
+        const h = (this.element ? this.element.offsetHeight : this.size) || this.size;
+        const mxX = window.innerWidth - w;
+        const mxY = window.innerHeight - h;
+
+        if (this.x < 0 || this.x > mxX) { this.vx *= -1; this.x = Math.max(0, Math.min(mxX, this.x)); }
+        if (this.y < 0 || this.y > mxY) { this.vy *= -1; this.y = Math.max(0, Math.min(mxY, this.y)); }
+
+        if (this.vx < 0) this.element.classList.add('flipped');
+        else this.element.classList.remove('flipped');
+
         if (Math.random() < 0.01 && !this.isRunning) {
             this.vx += (Math.random() - 0.5) * 0.5;
             this.vy += (Math.random() - 0.5) * 0.5;
-
-            // Limit speed
-            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-            if (speed > 2) {
-                this.vx = (this.vx / speed) * 2;
-                this.vy = (this.vy / speed) * 2;
-            }
+            const s = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+            if (s > 2) { this.vx = (this.vx / s) * 2; this.vy = (this.vy / s) * 2; }
         }
 
-        // Apply position
         this.element.style.left = this.x + 'px';
         this.element.style.top = this.y + 'px';
-
-        requestAnimationFrame(() => this.animate());
     }
 
-    // Collision Detection Methods
     getCenter() {
-        if (!this.element) return { x: this.x, y: this.y };
-        const width = this.element.offsetWidth || this.size;
-        const height = this.element.offsetHeight || this.size;
-        return {
-            x: this.x + width / 2,
-            y: this.y + height / 2
-        };
+        const w = (this.element ? this.element.offsetWidth : this.size) || this.size;
+        const h = (this.element ? this.element.offsetHeight : this.size) || this.size;
+        return { x: this.x + w / 2, y: this.y + h / 2 };
     }
 
     getRadius() {
-        if (!this.element) return this.size / 2;
-        // Use average of width and height for radius
-        const width = this.element.offsetWidth || this.size;
-        const height = this.element.offsetHeight || this.size;
-        return (width + height) / 4; // Divide by 4 to get average radius
+        const w = (this.element ? this.element.offsetWidth : this.size) || this.size;
+        const h = (this.element ? this.element.offsetHeight : this.size) || this.size;
+        return (w + h) / 4;
     }
 
-    checkCollisionWith(otherMascot) {
-        if (!otherMascot || otherMascot.id === this.id) return false;
-        if (!this.element || !otherMascot.element) return false;
-        if (this.isDisabled || otherMascot.isDisabled) return false;
-
-        const center1 = this.getCenter();
-        const center2 = otherMascot.getCenter();
-        const radius1 = this.getRadius();
-        const radius2 = otherMascot.getRadius();
-
-        const dx = center2.x - center1.x;
-        const dy = center2.y - center1.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        return distance < (radius1 + radius2);
+    checkCollisionWith(other) {
+        if (!other || other.id === this.id || this.isDisabled || other.isDisabled) return false;
+        const c1 = this.getCenter(), c2 = other.getCenter();
+        const dist = Math.sqrt((c2.x - c1.x) ** 2 + (c2.y - c1.y) ** 2);
+        return dist < (this.getRadius() + other.getRadius());
     }
 
-    handleCollision(otherMascot) {
+    handleCollision(other) {
         if (!collisionSettings.enabled) return;
-        if (!this.element || !otherMascot || !otherMascot.element) return;
+        const c1 = this.getCenter(), c2 = other.getCenter();
+        let dx = c2.x - c1.x, dy = c2.y - c1.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
 
-        const center1 = this.getCenter();
-        const center2 = otherMascot.getCenter();
+        const minDistance = (this.getRadius() + other.getRadius());
 
-        // Calculate collision normal
-        const dx = center2.x - center1.x;
-        const dy = center2.y - center1.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance === 0) return; // Prevent division by zero
-
-        // Normalize collision vector
-        const nx = dx / distance;
-        const ny = dy / distance;
-
-        // Calculate relative velocity
-        const dvx = otherMascot.vx - this.vx;
-        const dvy = otherMascot.vy - this.vy;
-
-        // Calculate relative velocity in collision normal direction
-        const dvn = dvx * nx + dvy * ny;
-
-        // Do not resolve if velocities are separating
-        if (dvn > 0) return;
-
-        // Calculate mass based on size (larger = heavier)
-        const mass1 = this.size / 64; // Normalized to default size
-        const mass2 = otherMascot.size / 64;
-
-        // Calculate impulse scalar with restitution (bounciness)
-        const restitution = collisionSettings.strength;
-        const impulse = (-(1 + restitution) * dvn) / (1 / mass1 + 1 / mass2);
-
-        // Apply impulse to velocities
-        const impulseX = impulse * nx;
-        const impulseY = impulse * ny;
-
-        this.vx -= impulseX / mass1;
-        this.vy -= impulseY / mass1;
-        otherMascot.vx += impulseX / mass2;
-        otherMascot.vy += impulseY / mass2;
-
-        // Separate overlapping mascots
-        const overlap = (this.getRadius() + otherMascot.getRadius()) - distance;
-        if (overlap > 0) {
-            const separationX = nx * overlap / 2;
-            const separationY = ny * overlap / 2;
-
-            this.x -= separationX;
-            this.y -= separationY;
-            otherMascot.x += separationX;
-            otherMascot.y += separationY;
+        if (dist < 10) {
+            // Strong kick for tight overlaps
+            const angle = Math.random() * Math.PI * 2;
+            const force = 4;
+            this.vx -= Math.cos(angle) * force;
+            this.vy -= Math.sin(angle) * force;
+            other.vx += Math.cos(angle) * force;
+            other.vy += Math.sin(angle) * force;
+            // Physical displacement to break deadlock
+            const sep = 10;
+            this.x -= Math.cos(angle) * sep;
+            this.y -= Math.sin(angle) * sep;
+            return;
         }
 
-        // Show collision message if enabled
-        if (collisionSettings.showMessages && Math.random() < 0.3) {
-            const collisionMessages = [
-                "앗! 😮",
-                "조심해! ⚠️",
-                "어! 😯",
-                "미안! 😅",
-                "아야! 💥"
-            ];
-            const message = collisionMessages[Math.floor(Math.random() * collisionMessages.length)];
-            this.showSpeechBubble(message);
+        const nx = dx / dist, ny = dy / dist;
+        const dvn = (other.vx - this.vx) * nx + (other.vy - this.vy) * ny;
+        if (dvn > 0) return;
+        const m1 = this.size / 64, m2 = other.size / 64;
+        const impulse = (-(1 + collisionSettings.strength) * dvn) / (1 / m1 + 1 / m2);
+        this.vx -= (impulse * nx) / m1; this.vy -= (impulse * ny) / m1;
+        other.vx += (impulse * nx) / m2; other.vy += (impulse * ny) / m2;
+
+        const overlap = minDistance - dist;
+        if (overlap > 0) {
+            const pushX = nx * overlap / 1.1; // Aggressive separation
+            const pushY = ny * overlap / 1.1;
+            this.x -= pushX; this.y -= pushY;
+            other.x += pushX; other.y += pushY;
         }
     }
 
     onResize() {
-        const width = this.element.offsetWidth || this.size;
-        const height = this.element.offsetHeight || this.size;
-        const maxX = window.innerWidth - width;
-        const maxY = window.innerHeight - height;
-        this.x = Math.min(this.x, maxX);
-        this.y = Math.min(this.y, maxY);
+        if (!this.element) return;
+        const mxX = window.innerWidth - (this.element.offsetWidth || this.size);
+        const mxY = window.innerHeight - (this.element.offsetHeight || this.size);
+        this.x = Math.min(this.x, mxX);
+        this.y = Math.min(this.y, mxY);
     }
 }
 
-// Collision Settings
-const collisionSettings = {
-    enabled: true,
-    strength: 0.8, // Restitution coefficient (0 = no bounce, 1 = perfect bounce)
-    showMessages: true
-};
+// GLOBAL UI CORE
+function setupGlobalMascotUI() {
+    const modal = document.getElementById('mascot-modal');
+    const btn = document.getElementById('mascot-settings-btn');
+    if (!modal || !btn) return;
 
-// Load collision settings from localStorage
-const loadCollisionSettings = () => {
-    const savedEnabled = localStorage.getItem('collision-enabled');
-    const savedStrength = localStorage.getItem('collision-strength');
-    const savedMessages = localStorage.getItem('collision-messages');
+    const updateSettingsUI = () => {
+        const m = getMascotById(selectedMascotId);
+        if (!m) return;
+        const sizeSlider = document.getElementById('mascot-size');
+        const sizeInput = document.getElementById('mascot-size-input');
+        const disableCheck = document.getElementById('mascot-disable');
+        const noFloatCheck = document.getElementById('mascot-no-float');
+        const effect3dCheck = document.getElementById('mascot-effect-3d');
+        const actionCheck = document.getElementById('mascot-action-mode');
+        const weaponSel = document.getElementById('mascot-weapon');
+        const weaponSec = document.getElementById('weapon-selection');
 
-    if (savedEnabled !== null) collisionSettings.enabled = savedEnabled === 'true';
-    if (savedStrength !== null) collisionSettings.strength = parseFloat(savedStrength);
-    if (savedMessages !== null) collisionSettings.showMessages = savedMessages === 'true';
-};
+        if (!isAdjustingSlider) {
+            if (sizeSlider) sizeSlider.value = m.size;
+            if (sizeInput) sizeInput.value = m.size;
+        }
+        if (disableCheck) disableCheck.checked = m.isDisabled;
+        if (noFloatCheck) noFloatCheck.checked = m.isFloatDisabled;
+        if (effect3dCheck) effect3dCheck.checked = m.is3DEffectEnabled;
+        if (actionCheck) actionCheck.checked = m.isActionModeEnabled;
+        if (weaponSel) weaponSel.value = m.weaponType;
+        if (weaponSec) weaponSec.style.display = m.isActionModeEnabled ? 'block' : 'none';
+    };
 
-loadCollisionSettings();
+    const tabBtns = modal.querySelectorAll('.tab-btn');
+    const tabContents = modal.querySelectorAll('.tab-content');
+    tabBtns.forEach(b => {
+        b.addEventListener('click', () => {
+            const tabId = b.dataset.tab;
+            tabBtns.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            b.classList.add('active');
+            const target = document.getElementById(`tab-${tabId}`);
+            if (target) target.classList.add('active');
+        });
+    });
 
-// Frame counter for collision check throttling
-let collisionFrameCounter = 0;
-const COLLISION_CHECK_INTERVAL = 2; // Check every N frames
+    const updateMascotListUI = () => {
+        const list = document.getElementById('mascot-list');
+        if (!list) return;
+        const count = document.getElementById('mascot-count');
+        if (count) count.textContent = `(${mascots.length} active)`;
+        const nameEl = document.getElementById('selected-mascot-name');
+        if (nameEl) nameEl.textContent = `Mascot #${mascots.findIndex(m => m.id === selectedMascotId) + 1}`;
 
-// Check collisions between all mascots
+        list.innerHTML = '';
+        mascots.forEach((m, i) => {
+            const item = document.createElement('div');
+            item.style.cssText = `padding: 8px; margin: 5px 0; background: ${m.id === selectedMascotId ? 'rgba(0,255,65,0.2)' : 'rgba(0,0,0,0.2)'}; border: 1px solid ${m.id === selectedMascotId ? 'var(--primary-color)' : 'transparent'}; border-radius: 5px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: white;`;
+            item.innerHTML = `<span><strong>Mascot #${i + 1}</strong> <span style="opacity:0.7;font-size:0.9em;">- ${m.size}px</span></span><button class="btn delete-btn" style="padding:2px 6px;">🗑️</button>`;
+            item.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('delete-btn')) {
+                    selectedMascotId = m.id;
+                    updateMascotListUI();
+                    updateSettingsUI();
+                }
+            });
+            item.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (mascots.length > 1) {
+                    removeMascot(m.id);
+                    updateMascotListUI();
+                    updateSettingsUI();
+                } else {
+                    alert('Cannot delete last mascot!');
+                }
+            });
+            list.appendChild(item);
+        });
+    };
+
+    const addBtn = document.getElementById('add-mascot-btn');
+    if (addBtn) addBtn.addEventListener('click', () => {
+        const m = addMascot({});
+        selectedMascotId = m.id;
+        updateMascotListUI();
+        updateSettingsUI();
+    });
+
+    const sizeSlider = document.getElementById('mascot-size');
+    if (sizeSlider) {
+        sizeSlider.addEventListener('input', (e) => {
+            const m = getMascotById(selectedMascotId);
+            if (m) {
+                m.setSize(e.target.value);
+                const inp = document.getElementById('mascot-size-input');
+                if (inp) inp.value = e.target.value;
+            }
+        });
+        sizeSlider.addEventListener('change', () => saveMascotsToStorage());
+    }
+
+    const sizeInput = document.getElementById('mascot-size-input');
+    if (sizeInput) {
+        sizeInput.addEventListener('change', (e) => {
+            const m = getMascotById(selectedMascotId);
+            if (m) {
+                m.setSize(e.target.value);
+                const sli = document.getElementById('mascot-size');
+                if (sli) sli.value = e.target.value;
+                saveMascotsToStorage();
+            }
+        });
+    }
+
+    const closeMod = document.getElementById('close-mascot-modal');
+    if (closeMod) closeMod.addEventListener('click', () => modal.classList.remove('show'));
+
+    const disableCheck = document.getElementById('mascot-disable');
+    if (disableCheck) disableCheck.addEventListener('change', (e) => {
+        const m = getMascotById(selectedMascotId);
+        if (m) { m.isDisabled = e.target.checked; m.updateVisibility(); saveMascotsToStorage(); }
+    });
+
+    const noFloatCheck = document.getElementById('mascot-no-float');
+    if (noFloatCheck) noFloatCheck.addEventListener('change', (e) => {
+        const m = getMascotById(selectedMascotId);
+        if (m) { m.isFloatDisabled = e.target.checked; m.updateAnimation(); saveMascotsToStorage(); }
+    });
+
+    const effect3dCheck = document.getElementById('mascot-effect-3d');
+    if (effect3dCheck) effect3dCheck.addEventListener('change', (e) => {
+        const m = getMascotById(selectedMascotId);
+        if (m) { m.is3DEffectEnabled = e.target.checked; m.update3DEffects(); saveMascotsToStorage(); }
+    });
+
+    const actionCheck = document.getElementById('mascot-action-mode');
+    if (actionCheck) actionCheck.addEventListener('change', (e) => {
+        const m = getMascotById(selectedMascotId);
+        if (m) {
+            m.setActionMode(e.target.checked);
+            saveMascotsToStorage();
+        }
+    });
+
+    const weaponSel = document.getElementById('mascot-weapon');
+    if (weaponSel) weaponSel.addEventListener('change', (e) => {
+        const m = getMascotById(selectedMascotId);
+        if (m) {
+            m.setWeaponType(e.target.value);
+            saveMascotsToStorage();
+        }
+    });
+
+    const uploadInp = document.getElementById('mascot-upload');
+    if (uploadInp) uploadInp.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const m = getMascotById(selectedMascotId);
+                if (m) m.updateImage(ev.target.result, true);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    btn.addEventListener('click', () => {
+        updateMascotListUI();
+        updateSettingsUI();
+        modal.classList.add('show');
+    });
+
+    updateMascotListUI();
+    updateSettingsUI();
+}
+
+function generateMascotId() { return 'mascot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); }
+function getMascotById(id) { return mascots.find(m => m.id === id); }
+
 function checkAllCollisions() {
     if (!collisionSettings.enabled || mascots.length < 2) return;
-
-    // Throttle collision checks for performance
-    collisionFrameCounter++;
-    if (collisionFrameCounter < COLLISION_CHECK_INTERVAL) return;
-    collisionFrameCounter = 0;
-
-    // Check each pair of mascots only once
     for (let i = 0; i < mascots.length; i++) {
         for (let j = i + 1; j < mascots.length; j++) {
-            const mascot1 = mascots[i];
-            const mascot2 = mascots[j];
-
-            if (mascot1.checkCollisionWith(mascot2)) {
-                mascot1.handleCollision(mascot2);
-            }
+            if (mascots[i].checkCollisionWith(mascots[j])) mascots[i].handleCollision(mascots[j]);
         }
     }
 }
 
-// Multi-Mascot Management System
-let mascots = [];
-let selectedMascotId = null;
-
-// Generate unique ID for mascots
-function generateMascotId() {
-    return 'mascot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
-// Add new mascot
 function addMascot(config = {}, skipSave = false) {
-    const id = config.id || generateMascotId();
-    const mascot = new Mascot(id, config);
-    mascots.push(mascot);
-    if (!skipSave && !isLoadingMascots) {
-        saveMascotsToStorage();
-    }
-    return mascot;
+    const m = new Mascot(config.id || generateMascotId(), config);
+    mascots.push(m);
+    if (!skipSave && !isLoadingMascots) saveMascotsToStorage();
+    return m;
 }
 
-// Remove mascot by ID
 function removeMascot(id) {
-    const index = mascots.findIndex(m => m.id === id);
-    if (index !== -1) {
-        const mascot = mascots[index];
-        if (mascot.element) {
-            mascot.element.remove();
-        }
-        mascots.splice(index, 1);
-
-        // If removed mascot was selected, clear selection
-        if (selectedMascotId === id) {
-            selectedMascotId = mascots.length > 0 ? mascots[0].id : null;
-        }
-
+    const idx = mascots.findIndex(m => m.id === id);
+    if (idx !== -1) {
+        mascots[idx].destroy();
+        mascots.splice(idx, 1);
+        if (selectedMascotId === id) selectedMascotId = mascots.length > 0 ? mascots[0].id : null;
         saveMascotsToStorage();
         return true;
     }
     return false;
 }
 
-// Get mascot by ID
-function getMascotById(id) {
-    return mascots.find(m => m.id === id);
-}
-
-// Save all mascots to localStorage
 function saveMascotsToStorage() {
-    const mascotsData = mascots.map(m => ({
-        id: m.id,
-        image: m.currentImage,
-        isCustom: m.isCustom,
-        size: m.size,
-        x: m.x,
-        y: m.y,
-        vx: m.vx,
-        vy: m.vy,
-        disabled: m.isDisabled,
-        noFloat: m.isFloatDisabled,
-        effect3d: m.is3DEffectEnabled
-    }));
-
-    const jsonData = JSON.stringify(mascotsData);
-    localStorage.setItem('mascots-data', jsonData);
-
-    // Debug: verify save immediately
-    console.log('[Mascot] Saved:', mascotsData.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
+    localStorage.setItem('mascots-data', JSON.stringify(mascots.map(m => ({
+        id: m.id, image: m.currentImage, isCustom: m.isCustom, size: m.size,
+        x: m.x, y: m.y, vx: m.vx, vy: m.vy, disabled: m.isDisabled,
+        noFloat: m.isFloatDisabled, effect3d: m.is3DEffectEnabled,
+        actionMode: m.isActionModeEnabled, weaponType: m.weaponType
+    }))));
 }
 
-// Load all mascots from localStorage
 function loadMascotsFromStorage() {
-    isLoadingMascots = true; // Set flag to prevent save during load
+    isLoadingMascots = true;
+    // Clear existing
+    mascots.forEach(m => m.destroy());
+    mascots = [];
 
-    // Try to load new format first
-    const mascotsDataStr = localStorage.getItem('mascots-data');
-
-    if (mascotsDataStr) {
+    const data = localStorage.getItem('mascots-data');
+    if (data) {
         try {
-            const mascotsData = JSON.parse(mascotsDataStr);
-
-            // Debug: show loaded data
-            console.log('[Mascot] Loading:', mascotsData.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
-
-            mascotsData.forEach(data => {
-                addMascot(data, true); // Skip save during load
-            });
-
-            // Select first mascot
-            if (mascots.length > 0) {
-                selectedMascotId = mascots[0].id;
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                parsed.forEach(d => addMascot(d, true));
+            } else {
+                addMascot({});
             }
-
-            // Debug: verify loaded sizes
-            console.log('[Mascot] After load:', mascots.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
-
-            isLoadingMascots = false; // Reset flag
-            return;
         } catch (e) {
-            console.error('Failed to load mascots data:', e);
+            console.error('Mascot load error:', e);
+            addMascot({});
         }
-    }
-
-    // Migrate old single mascot format
-    const oldImage = localStorage.getItem('mascot-image');
-    const oldIsCustom = localStorage.getItem('mascot-is-custom') === 'true';
-    const oldSize = parseInt(localStorage.getItem('mascot-size')) || 64;
-    const oldDisabled = localStorage.getItem('mascot-disabled') === 'true';
-    const oldNoFloat = localStorage.getItem('mascot-no-float') === 'true';
-
-    if (oldImage) {
-        // Migrate old data to new format
-        addMascot({
-            image: oldImage,
-            isCustom: oldIsCustom,
-            size: oldSize,
-            disabled: oldDisabled,
-            noFloat: oldNoFloat
-        });
-
-        // Clean up old localStorage keys
-        localStorage.removeItem('mascot-image');
-        localStorage.removeItem('mascot-is-custom');
-        localStorage.removeItem('mascot-size');
-        localStorage.removeItem('mascot-disabled');
-        localStorage.removeItem('mascot-no-float');
-
-        saveMascotsToStorage();
     } else {
-        // No existing data, create default mascot
         addMascot({});
     }
+    if (mascots.length > 0) selectedMascotId = mascots[0].id;
+    isLoadingMascots = false;
+}
 
-    // Select first mascot
-    if (mascots.length > 0) {
-        selectedMascotId = mascots[0].id;
+function globalUpdate() {
+    if (projectiles.length > MAX_PROJECTILES) {
+        const toRemove = projectiles.length - MAX_PROJECTILES;
+        for (let i = 0; i < toRemove; i++) {
+            if (projectiles[0]) projectiles[0].destroy();
+        }
     }
-
-    isLoadingMascots = false; // Reset flag after load complete
+    projectiles.forEach(p => p.update());
+    mascots.forEach(m => {
+        if (!m.isDisabled) m.updatePosition();
+    });
+    checkAllCollisions();
+    requestAnimationFrame(globalUpdate);
 }
 
-// Initialize mascots when page loads
-function initMascots() {
+// BOOTSTRAP
+function initMascotSystem() {
     loadMascotsFromStorage();
+    setupGlobalMascotUI();
+
+    // Global Event Cleanup (Firefox Safety)
+    window.addEventListener('mouseup', () => {
+        mascots.forEach(m => m.stopShooting());
+    });
+    window.addEventListener('blur', () => {
+        mascots.forEach(m => m.stopShooting());
+    });
+    window.addEventListener('contextmenu', () => {
+        mascots.forEach(m => m.stopShooting());
+    });
+
+    globalUpdate();
 }
 
-// Auto-start mascots
-setTimeout(initMascots, 1000);
+if (document.readyState === 'complete') {
+    initMascotSystem();
+} else {
+    window.addEventListener('load', initMascotSystem);
+}

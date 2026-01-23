@@ -66,14 +66,25 @@ class MusicPlayer {
             this.playlist = await response.json();
             this.renderPlaylist();
 
-            // Load first track but don't play
             if (this.playlist.length > 0) {
                 this.loadTrack(0);
             }
         } catch (error) {
-            console.error('Error loading playlist:', error);
+            console.error('Error loading playlist (CORS in local file?):', error);
+            // FALLBACK PLAYLIST FOR LOCAL TESTING
+            this.playlist = [
+                { title: "Mascot Theme 1", artist: "Gurupia", file: "bgm.mp3" }
+            ];
+            this.renderPlaylist();
+            if (this.playlist.length > 0) this.loadTrack(0);
+
             if (this.playlistContainer) {
-                this.playlistContainer.innerHTML = '<div class="playlist-item">Error loading playlist</div>';
+                const notice = document.createElement('div');
+                notice.style.fontSize = '10px';
+                notice.style.color = '#ff4500';
+                notice.style.marginTop = '5px';
+                notice.innerHTML = '⚠️ Firefox: Local file access (CORS) blocked. Use Live Server for full playlist.';
+                this.playlistContainer.appendChild(notice);
             }
         }
     }
