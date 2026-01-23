@@ -911,7 +911,7 @@ function saveMascotsToStorage() {
         noFloat: m.isFloatDisabled, effect3d: m.is3DEffectEnabled,
         actionMode: m.isActionModeEnabled, weaponType: m.weaponType,
         aiType: m.aiType
-    })))));
+    }))));
 }
 
 function loadMascotsFromStorage() {
