@@ -319,17 +319,18 @@ class Mascot {
         updateSettingsUI();
 
         // Size Slider - handle both input (while dragging) and change (on release)
-        let isAdjustingSlider = false; // Flag to prevent UI updates during slider adjustment
+        // Note: Using global isAdjustingSlider flag defined at top of file
 
         if (sizeSlider) {
             const handleSizeChange = (e) => {
                 const selectedMascot = getMascotById(selectedMascotId);
                 if (selectedMascot) {
-                    selectedMascot.setSize(e.target.value);
+                    const newSize = parseInt(e.target.value);
+                    selectedMascot.setSize(newSize);
                     // Update the list UI to show new size (inline, without full refresh)
                     const sizeDisplay = document.querySelector(`#mascot-list [data-id="${selectedMascotId}"] .size-display`);
                     if (sizeDisplay) {
-                        sizeDisplay.textContent = ` - ${selectedMascot.size}px ${selectedMascot.isDisabled ? '(Disabled)' : ''}`;
+                        sizeDisplay.textContent = ` - ${newSize}px ${selectedMascot.isDisabled ? '(Disabled)' : ''}`;
                     }
                 }
             };
@@ -342,21 +343,30 @@ class Mascot {
 
             // Save on change (when slider is released)
             sizeSlider.addEventListener('change', (e) => {
-                handleSizeChange(e);
-                saveMascotsToStorage();
-                // Delay UI update to prevent Firefox issues
+                const selectedMascot = getMascotById(selectedMascotId);
+                if (selectedMascot) {
+                    const finalSize = parseInt(e.target.value);
+                    selectedMascot.setSize(finalSize);
+                    saveMascotsToStorage();
+
+                    // Firefox fix: explicitly set slider value to prevent reset
+                    e.target.value = finalSize;
+
+                    console.log(`[Mascot] Size changed to ${finalSize}, saved.`);
+                }
+
+                // Delay flag reset
                 setTimeout(() => {
                     isAdjustingSlider = false;
-                    updateMascotListUI();
-                }, 50);
+                }, 100);
             });
 
             // End adjusting on mouseup/touchend (backup)
             sizeSlider.addEventListener('mouseup', () => {
-                setTimeout(() => { isAdjustingSlider = false; }, 100);
+                setTimeout(() => { isAdjustingSlider = false; }, 150);
             });
             sizeSlider.addEventListener('touchend', () => {
-                setTimeout(() => { isAdjustingSlider = false; }, 100);
+                setTimeout(() => { isAdjustingSlider = false; }, 150);
             });
         }
 
