@@ -1,5 +1,6 @@
 // Mascot Character System
 let isLoadingMascots = false; // Flag to prevent save during load
+let isAdjustingSlider = false; // Flag to prevent UI updates during slider adjustment (Firefox fix)
 
 class Mascot {
     constructor(id, config = {}) {
@@ -169,13 +170,16 @@ class Mascot {
             const selectedMascot = getMascotById(selectedMascotId);
             if (!selectedMascot) return;
 
-            // Debug: track when slider is being reset
-            const currentSliderValue = sizeSlider ? parseInt(sizeSlider.value) : 0;
-            if (currentSliderValue !== selectedMascot.size) {
-                console.log(`[Mascot] updateSettingsUI: slider ${currentSliderValue} -> ${selectedMascot.size}`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
+            // Skip slider update during adjustment (Firefox fix)
+            if (!isAdjustingSlider) {
+                // Debug: track when slider is being reset
+                const currentSliderValue = sizeSlider ? parseInt(sizeSlider.value) : 0;
+                if (currentSliderValue !== selectedMascot.size) {
+                    console.log(`[Mascot] updateSettingsUI: slider ${currentSliderValue} -> ${selectedMascot.size}`);
+                }
+                if (sizeSlider) sizeSlider.value = selectedMascot.size;
             }
 
-            if (sizeSlider) sizeSlider.value = selectedMascot.size;
             if (disableCheckbox) disableCheckbox.checked = selectedMascot.isDisabled;
             if (noFloatCheckbox) noFloatCheckbox.checked = selectedMascot.isFloatDisabled;
         };
@@ -315,18 +319,24 @@ class Mascot {
         updateSettingsUI();
 
         // Size Slider - handle both input (while dragging) and change (on release)
+        let isAdjustingSlider = false; // Flag to prevent UI updates during slider adjustment
+
         if (sizeSlider) {
             const handleSizeChange = (e) => {
                 const selectedMascot = getMascotById(selectedMascotId);
                 if (selectedMascot) {
                     selectedMascot.setSize(e.target.value);
-                    // Update the list UI to show new size
+                    // Update the list UI to show new size (inline, without full refresh)
                     const sizeDisplay = document.querySelector(`#mascot-list [data-id="${selectedMascotId}"] .size-display`);
                     if (sizeDisplay) {
-                        sizeDisplay.textContent = `${selectedMascot.size}px`;
+                        sizeDisplay.textContent = ` - ${selectedMascot.size}px ${selectedMascot.isDisabled ? '(Disabled)' : ''}`;
                     }
                 }
             };
+
+            // Start adjusting
+            sizeSlider.addEventListener('mousedown', () => { isAdjustingSlider = true; });
+            sizeSlider.addEventListener('touchstart', () => { isAdjustingSlider = true; });
 
             sizeSlider.addEventListener('input', handleSizeChange);
 
@@ -334,7 +344,19 @@ class Mascot {
             sizeSlider.addEventListener('change', (e) => {
                 handleSizeChange(e);
                 saveMascotsToStorage();
-                updateMascotListUI(); // Refresh list to show updated size
+                // Delay UI update to prevent Firefox issues
+                setTimeout(() => {
+                    isAdjustingSlider = false;
+                    updateMascotListUI();
+                }, 50);
+            });
+
+            // End adjusting on mouseup/touchend (backup)
+            sizeSlider.addEventListener('mouseup', () => {
+                setTimeout(() => { isAdjustingSlider = false; }, 100);
+            });
+            sizeSlider.addEventListener('touchend', () => {
+                setTimeout(() => { isAdjustingSlider = false; }, 100);
             });
         }
 
