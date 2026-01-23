@@ -17,36 +17,7 @@
 
   /* Default Animation (Float) */
   animation: float 2s ease-in-out infinite;
-  user-select: none;
-  -webkit-user-drag: none;
 }
-
-.mascot:active {
-  cursor: grabbing;
-}
-
-.mascot.dragging {
-  cursor: grabbing;
-  animation: none !important;
-  opacity: 0.8;
-  filter: drop-shadow(0 0 20px var(--glow-color)) brightness(1.2);
-  transform: scale(1.1) !important;
-  z-index: 10001;
-}
-
-.mascot.flipped.dragging {
-  transform: scale(-1.1, 1.1) !important;
-}
-
-/* Legacy Sprite Animation (for sprite sheet images)
-   To use: replace mascot.png with 8-frame horizontal sprite sheet
-   and change background-size to 800% 100%, animation to walk
-.mascot.sprite-mode {
-  background-size: 800% 100%;
-  image-rendering: pixelated;
-  animation: walk 0.8s steps(4) infinite;
-}
-*/
 
 /* Remove img tag styling as we use background-image now */
 .mascot img {
