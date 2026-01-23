@@ -118,6 +118,12 @@ class Mascot {
         this.isFloatDisabled = config.noFloat || false;
         this.currentImage = config.image || 'mascot.png';
 
+        // Drag-Click coordination
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.dragDistanceThreshold = 5; // Minimum 5px to be considered a drag
+        this.isRecentlyDragged = false;
+
         this.messages = [
             "찌르지 마!",
             "아야! 😣",
@@ -732,6 +738,13 @@ class Mascot {
 
     onClick(e) {
         e.stopPropagation();
+
+        // Ignore click event if mascot was just dragged
+        if (this.isRecentlyDragged) {
+            this.isRecentlyDragged = false;
+            return;
+        }
+
         this.clickCount++;
         const now = Date.now();
 
@@ -854,27 +867,38 @@ class Mascot {
         e.preventDefault();
 
         this.isDragging = true;
+        this.isRecentlyDragged = false;
         this.element.classList.add('dragging');
 
-        const startX = e.clientX;
-        const startY = e.clientY;
+        this.dragStartX = e.clientX;
+        this.dragStartY = e.clientY;
         const initialX = this.x;
         const initialY = this.y;
 
         const onMouseMove = (moveEvent) => {
-            this.x = initialX + (moveEvent.clientX - startX);
-            this.y = initialY + (moveEvent.clientY - startY);
+            this.x = initialX + (moveEvent.clientX - this.dragStartX);
+            this.y = initialY + (moveEvent.clientY - this.dragStartY);
 
             // Apply position immediately for smooth drag
             this.element.style.left = this.x + 'px';
             this.element.style.top = this.y + 'px';
         };
 
-        const onMouseUp = () => {
+        const onMouseUp = (upEvent) => {
             this.isDragging = false;
             this.element.classList.remove('dragging');
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
+
+            // Check if it was a significant drag
+            const distance = Math.sqrt(
+                Math.pow(upEvent.clientX - this.dragStartX, 2) +
+                Math.pow(upEvent.clientY - this.dragStartY, 2)
+            );
+
+            if (distance > this.dragDistanceThreshold) {
+                this.isRecentlyDragged = true;
+            }
 
             // Stop movement for a second after dragging
             this.vx = 0;
@@ -882,6 +906,9 @@ class Mascot {
             setTimeout(() => {
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() - 0.5) * 2;
+                // Reset recently dragged status after a short delay
+                // Click event fires right after mouseup
+                setTimeout(() => { this.isRecentlyDragged = false; }, 100);
             }, 1000);
 
             manager.save();
