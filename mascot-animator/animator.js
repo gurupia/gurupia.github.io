@@ -1,6 +1,8 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const imgInput = document.getElementById('imageInput');
+const urlInput = document.getElementById('urlInput');
+const loadUrlBtn = document.getElementById('loadUrlBtn');
 const animSelect = document.getElementById('animType');
 const speedRange = document.getElementById('speedRange');
 const ampRange = document.getElementById('ampRange');
@@ -11,8 +13,9 @@ const previewVideo = document.getElementById('previewVideo');
 const downloadLink = document.getElementById('downloadLink');
 const downloadSection = document.getElementById('downloadSection');
 
-let img = new Image();
-let isImgLoaded = false;
+let mediaSource = null; // Image or Video element
+let isSourceLoaded = false;
+let isVideo = false;
 let time = 0;
 let animationId = null;
 
@@ -31,25 +34,74 @@ let state = {
     format: 'webp'
 };
 
-// --- Initialization ---
+// --- Source Loading ---
 imgInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            img.src = event.target.result;
-            img.onload = () => {
-                isImgLoaded = true;
-                fitCanvasToImage();
-            };
-        };
-        reader.readAsDataURL(file);
+        const url = URL.createObjectURL(file);
+        if (file.type.startsWith('video/')) {
+            loadVideo(url);
+        } else {
+            loadImage(url);
+        }
     }
 });
 
-function fitCanvasToImage() {
+loadUrlBtn.addEventListener('click', () => {
+    const url = urlInput.value.trim();
+    if (!url) return;
+
+    // Simple heuristic extension check, but browser load will be definitive
+    if (url.match(/\.(mp4|webm|mov)$/i)) {
+        loadVideo(url);
+    } else {
+        loadImage(url);
+    }
+});
+
+function loadImage(src) {
+    if (mediaSource && isVideo) { mediaSource.pause(); mediaSource.remove(); }
+
+    mediaSource = new Image();
+    mediaSource.crossOrigin = "anonymous";
+    mediaSource.src = src;
+    mediaSource.onload = () => {
+        isSourceLoaded = true;
+        isVideo = false;
+        fitCanvasToSource();
+        recordingStatus.textContent = "Image loaded!";
+    };
+    mediaSource.onerror = () => {
+        alert("Failed to load Image! Check URL or CORS policy.");
+    };
+}
+
+function loadVideo(src) {
+    if (mediaSource && isVideo) { mediaSource.pause(); mediaSource.remove(); }
+
+    mediaSource = document.createElement('video');
+    mediaSource.crossOrigin = "anonymous";
+    mediaSource.src = src;
+    mediaSource.loop = true;
+    mediaSource.muted = true;
+    mediaSource.autoplay = true;
+    mediaSource.playsInline = true;
+
+    mediaSource.onloadedmetadata = () => {
+        isSourceLoaded = true;
+        isVideo = true;
+        mediaSource.play();
+        fitCanvasToSource();
+        recordingStatus.textContent = "Video loaded!";
+    };
+    mediaSource.onerror = () => {
+        alert("Failed to load Video! Check URL or CORS policy.");
+    };
+}
+
+function fitCanvasToSource() {
     const maxDim = 512;
-    // Keep aspect ratio
+    // Keep aspect ratio logic if needed in future
     canvas.width = 512;
     canvas.height = 512;
 }
@@ -70,7 +122,7 @@ ampRange.addEventListener('input', (e) => {
 function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height); // Critical for transparency
 
-    if (isImgLoaded) {
+    if (isSourceLoaded && mediaSource) {
         const t = time * state.speed;
         const amp = state.intensity;
 
@@ -80,11 +132,14 @@ function animate() {
         ctx.translate(cx, cy);
 
         // --- PROC ANIMS ---
+        // Apply animations to both Image and Video
         switch (state.anim) {
             case 'breath':
                 const scaleB = 1 + Math.sin(t * 0.05) * 0.05 * amp;
                 ctx.scale(1, scaleB);
-                ctx.translate(0, (1 - scaleB) * (img.height / 2));
+                // Center based on source height
+                const h = isVideo ? mediaSource.videoHeight : mediaSource.height;
+                ctx.translate(0, (1 - scaleB) * (h / 2 * (canvas.width * 0.6 / (isVideo ? mediaSource.videoWidth : mediaSource.width))));
                 break;
             case 'float':
                 const yFloat = Math.sin(t * 0.05) * 15 * amp;
@@ -119,11 +174,14 @@ function animate() {
                 break;
         }
 
+        const srcW = isVideo ? mediaSource.videoWidth : mediaSource.width;
+        const srcH = isVideo ? mediaSource.videoHeight : mediaSource.height;
         const maxW = canvas.width * 0.6;
-        const ratio = Math.min(maxW / img.width, maxW / img.height);
-        const drawW = img.width * ratio;
-        const drawH = img.height * ratio;
-        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+        const ratio = Math.min(maxW / srcW, maxW / srcH);
+        const drawW = srcW * ratio;
+        const drawH = srcH * ratio;
+
+        ctx.drawImage(mediaSource, -drawW / 2, -drawH / 2, drawW, drawH);
         ctx.restore();
     }
 
@@ -137,7 +195,7 @@ let mediaRecorder;
 let recordedChunks = [];
 
 recordBtn.addEventListener('click', async () => {
-    if (!isImgLoaded) return alert('Please upload an image first!');
+    if (!isSourceLoaded) return alert('Please load an image or video first!');
 
     // Load FFmpeg if needed (WebP or GIF)
     if (state.format !== 'webm') {
@@ -226,9 +284,7 @@ async function convertFormat(webmBlob, format) {
         downloadLink.textContent = '⬇️ Download Animated WebP';
     } else if (format === 'gif') {
         // GIF Conversion (Palette generation for transparency)
-        // 1. Generate palette
         await ffmpeg.run('-i', 'input.webm', '-vf', 'palettegen=reserve_transparent=1', 'palette.png');
-        // 2. Generate GIF using palette
         await ffmpeg.run('-i', 'input.webm', '-i', 'palette.png', '-lavfi', 'paletteuse=alpha_threshold=128', '-gifflags', '-offsetting', 'output.gif');
 
         const data = ffmpeg.FS('readFile', 'output.gif');

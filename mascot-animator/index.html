@@ -21,11 +21,16 @@
         <main>
             <div class="controls-panel">
                 <div class="control-group">
-                    <label>1. Upload Image</label>
+                    <label>1. Source (Upload or URL)</label>
                     <div class="file-upload">
-                        <input type="file" id="imageInput" accept="image/png, image/jpeg">
-                        <div class="upload-btn">📂 Choose PNG</div>
+                        <input type="file" id="imageInput" accept="image/*, video/*">
+                        <div class="upload-btn">📂 Choose File</div>
                     </div>
+                    <div style="margin-top: 10px; display: flex; gap: 5px;">
+                        <input type="text" id="urlInput" placeholder="https://example.com/image.png" style="flex:1;">
+                        <button id="loadUrlBtn" class="btn" style="width: auto; padding: 8px 15px;">Load</button>
+                    </div>
+                    <p class="note" style="margin-top: 5px;">* Supports Images (PNG, JPG) & Videos (MP4, WebM)</p>
                 </div>
 
                 <div class="control-group">
