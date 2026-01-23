@@ -722,45 +722,130 @@
     <button class="close-modal" id="close-mascot-modal">×</button>
     <h3>Character Settings</h3>
 
-    <div class="mascot-option">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-        <input type="checkbox" id="mascot-disable">
-        <label for="mascot-disable" style="margin: 0; cursor: pointer;">Disable Mascot</label>
+    <!-- Tab Header -->
+    <div class="modal-tabs">
+      <button class="tab-btn active" data-tab="basic">Basic</button>
+      <button class="tab-btn" data-tab="advanced">Advanced</button>
+      <button class="tab-btn" data-tab="ai-fx">AI & FX</button>
+    </div>
+
+    <!-- Basic Tab Content -->
+    <div class="tab-content active" id="tab-basic">
+      <div class="mascot-option">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+          <input type="checkbox" id="mascot-disable">
+          <label for="mascot-disable" style="margin: 0; cursor: pointer; font-weight: bold;">Disable Mascot</label>
+        </div>
+
+        <label for="mascot-size" style="font-weight: bold;">Mascot Size:</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="range" id="mascot-size" min="32" max="1280" step="8" style="flex: 1;">
+          <input type="number" id="mascot-size-input" min="32" max="1280" step="8" value="64"
+            style="width: 70px; padding: 5px; background: rgba(0,0,0,0.5); border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 3px; text-align: center;">
+          <span style="opacity: 0.7;">px</span>
+        </div>
       </div>
-      <label for="mascot-size">Mascot Size:</label>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <input type="range" id="mascot-size" min="32" max="1280" step="8" style="flex: 1;">
-        <input type="number" id="mascot-size-input" min="32" max="1280" step="8" value="64"
-          style="width: 70px; padding: 5px; background: rgba(0,0,0,0.5); border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 3px; text-align: center;">
-        <span style="opacity: 0.7;">px</span>
+
+      <div class="mascot-option">
+        <label style="font-weight: bold;">Custom Character:</label>
+        <div class="file-input-wrapper" style="margin: 10px 0;">
+          <button class="btn">📂 Choose Image...</button>
+          <input type="file" id="mascot-upload" accept="image/*">
+        </div>
+
+        <div id="mascot-drop-zone" class="drop-zone">
+          <p>Drag & Drop Image Here</p>
+        </div>
+
+        <p style="font-size: 0.8em; opacity: 0.7; margin-top: 10px;">
+          * Supports: PNG, JPG, Animated WebP/GIF
+        </p>
+      </div>
+
+      <div class="mascot-option" style="border-top: 1px solid rgba(0,255,65,0.2); padding-top: 15px;">
+        <div id="selected-mascot-info" style="margin-bottom: 10px;">
+          <h4 id="selected-mascot-name" style="margin: 0; color: var(--primary-color);">Mascot #1</h4>
+        </div>
+
+        <label style="font-weight: bold; margin-bottom: 8px; display: block;">Mascot List <span id="mascot-count"
+            style="font-weight: normal; font-size: 0.8em; opacity: 0.7;">(1 active)</span></label>
+        <div id="mascot-list"
+          style="max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,255,65,0.2); border-radius: 5px; padding: 5px; margin-bottom: 10px;">
+          <!-- Mascot list items injected here -->
+        </div>
+        <button id="add-mascot-btn" class="btn" style="width: 100%; font-size: 0.9em;">➕ Add New Mascot</button>
       </div>
     </div>
 
-
-
-    <div class="mascot-option">
-      <label>Upload Custom Character:</label>
-      <div class="file-input-wrapper">
-        <button class="btn">📂 Choose Image...</button>
-        <input type="file" id="mascot-upload" accept="image/*">
-      </div>
-
-      <div id="mascot-drop-zone" class="drop-zone">
-        <p>Drag & Drop Image Here</p>
-      </div>
-      <div style="margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 15px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <input type="checkbox" id="mascot-no-float">
-          <label for="mascot-no-float" style="margin: 0; cursor: pointer; font-size: 0.9em;">Disable Float</label>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
+    <!-- Advanced Tab Content -->
+    <div class="tab-content" id="tab-advanced">
+      <div class="mascot-option">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
           <input type="checkbox" id="mascot-effect-3d">
-          <label for="mascot-effect-3d" style="margin: 0; cursor: pointer; font-size: 0.9em;">3D Effects</label>
+          <label for="mascot-effect-3d" style="margin: 0; cursor: pointer; font-weight: bold;">3D Hover Effect</label>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <input type="checkbox" id="mascot-action-mode">
+          <label for="mascot-action-mode" style="margin: 0; cursor: pointer; font-weight: bold; color: #ff5f56;">Action
+            Mode (Firearms)</label>
+        </div>
+
+        <div id="weapon-selection" style="margin-left: 25px; display: none;">
+          <label for="mascot-weapon" style="font-size: 0.9em; margin-bottom: 5px; display: block;">Select
+            Weapon:</label>
+          <select id="mascot-weapon"
+            style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 5px; cursor: pointer;">
+            <option value="machinegun">🔫 Machine Gun (Rapid)</option>
+            <option value="shotgun">🔫 Shotgun (Spread)</option>
+            <option value="flamethrower">🔥 Flamethrower</option>
+            <option value="grenade">💣 Grenade (Area)</option>
+            <option value="missile">🚀 Homing Missile</option>
+          </select>
         </div>
       </div>
-      <p style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">
-        * Supports: PNG, JPG, Animated WebP/GIF
-      </p>
+
+      <div class="mascot-option" style="border-top: 1px solid rgba(0,255,65,0.2); padding-top: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="checkbox" id="mascot-no-float">
+          <label for="mascot-no-float" style="margin: 0; cursor: pointer; font-size: 0.9em;">Disable Float
+            Animation</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI & FX Tab Content -->
+    <div class="tab-content" id="tab-ai-fx">
+      <div class="mascot-option">
+        <label for="mascot-ai-type" style="font-weight: bold;">Behavioral AI:</label>
+        <select id="mascot-ai-type"
+          style="width: 100%; padding: 8px; background: rgba(0,0,0,0.5); border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 5px; cursor: pointer; margin-top: 5px;">
+          <option value="neutral">Neutral (Random Wander)</option>
+          <option value="curious">Curious (Follow Cursor)</option>
+          <option value="shy">Shy (Avoid Cursor)</option>
+          <option value="aggressive">Aggressive (Rush Cursor)</option>
+        </select>
+        <p style="font-size: 0.8em; opacity: 0.7; margin-top: 5px;">* AI only active when not in Action Mode.</p>
+      </div>
+
+      <div class="mascot-option" style="border-top: 1px solid rgba(0,255,65,0.2); padding-top: 15px;">
+        <label style="font-weight: bold; margin-bottom: 10px; display: block;">Visual & Audio FX:</label>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <input type="checkbox" id="fx-screen-shake" checked>
+          <label for="fx-screen-shake" style="margin: 0; cursor: pointer;">Enable Screen Shake</label>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <input type="checkbox" id="fx-particles" checked>
+          <label for="fx-particles" style="margin: 0; cursor: pointer;">Dynamic Particles (Sparks)</label>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <input type="checkbox" id="fx-sound" checked>
+          <label for="fx-sound" style="margin: 0; cursor: pointer;">Spatial Audio (Stereo Pan)</label>
+        </div>
+      </div>
     </div>
   </div>
 

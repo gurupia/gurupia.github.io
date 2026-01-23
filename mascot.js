@@ -5,7 +5,131 @@ let mascots = [];
 let projectiles = [];
 let selectedMascotId = null;
 const MAX_PROJECTILES = 100;
+const MAX_PARTICLES = 50;
 const collisionSettings = { enabled: true, strength: 0.8 };
+
+// Global FX & Audio Settings
+const fxSettings = {
+    screenShake: true,
+    particles: true,
+    sound: true
+};
+
+// --- SOUND MANAGER (Web Audio CSS-Spatial) ---
+class SoundManager {
+    constructor() {
+        this.ctx = null;
+        this.pannerPool = new Map();
+        this.enabled = true;
+    }
+
+    init() {
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    async playSpatialSound(type, x) {
+        if (!this.enabled || !fxSettings.sound) return;
+        this.init();
+        if (this.ctx.state === 'suspended') await this.ctx.resume();
+
+        const pan = (x / window.innerWidth) * 2 - 1; // -1 (left) to 1 (right)
+
+        // Simple oscillator/buffer sound generator for weapons (to avoid loading external assets)
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const panner = this.ctx.createStereoPanner();
+
+        panner.pan.value = pan;
+
+        osc.connect(gain);
+        gain.connect(panner);
+        panner.connect(this.ctx.destination);
+
+        const now = this.ctx.currentTime;
+        if (type === 'bullet') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'flame') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(60, now);
+            gain.gain.setValueAtTime(0.02, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+        } else if (type === 'explosion') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(10, now + 0.5);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+    }
+}
+
+const soundManager = new SoundManager();
+
+// --- PARTICLE SYSTEM ---
+class Particle {
+    constructor(x, y, vx, vy, color, type = 'spark') {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.life = 1.0;
+        this.decay = 0.02 + Math.random() * 0.03;
+        this.element = document.createElement('div');
+        this.element.className = `fx-particle ${type === 'spark' ? 'fx-spark' : 'fx-smoke'}`;
+        const size = type === 'spark' ? 2 + Math.random() * 3 : 5 + Math.random() * 10;
+        this.element.style.width = size + 'px';
+        this.element.style.height = size + 'px';
+        this.element.style.left = x + 'px';
+        this.element.style.top = y + 'px';
+        document.body.appendChild(this.element);
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.1; // Gravity
+        this.life -= this.decay;
+        this.element.style.left = this.x + 'px';
+        this.element.style.top = this.y + 'px';
+        this.element.style.opacity = this.life;
+        if (this.life <= 0) this.destroy();
+    }
+
+    destroy() {
+        this.element.remove();
+        const idx = particles.indexOf(this);
+        if (idx > -1) particles.splice(idx, 1);
+    }
+}
+
+let particles = [];
+
+function createExplosionFX(x, y) {
+    if (!fxSettings.particles) return;
+    for (let i = 0; i < 15; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = Math.random() * 8;
+        particles.push(new Particle(x, y, Math.cos(ang) * spd, Math.sin(ang) * spd, null, 'spark'));
+    }
+    if (fxSettings.screenShake) {
+        document.body.classList.remove('shake');
+        void document.body.offsetWidth; // Trigger reflow
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 300);
+    }
+}
 
 class Projectile {
     constructor(x, y, vx, vy, type, targetMascot = null) {
@@ -68,6 +192,9 @@ class Projectile {
                         this.explode();
                     } else {
                         m.createImpact(this.type === 'flame' ? 'scorch' : 'hole', this.x - m.x, this.y - m.y);
+                        if (fxSettings.particles) {
+                            for (let i = 0; i < 3; i++) particles.push(new Particle(this.x, this.y, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, null, 'spark'));
+                        }
                         if (this.type !== 'flame') this.destroy();
                     }
                 }
@@ -95,6 +222,8 @@ class Projectile {
                 m.vy += pushY;
             }
         });
+        createExplosionFX(this.x, this.y);
+        soundManager.playSpatialSound('explosion', this.x);
         this.destroy();
     }
 
@@ -128,6 +257,12 @@ class Mascot {
         this.isActionModeEnabled = config.actionMode || false;
         this.weaponType = config.weaponType || 'machinegun';
         this.currentImage = config.image || 'mascot.png';
+
+        // AI State
+        this.aiType = config.aiType || 'neutral'; // neutral, curious, shy, aggressive
+        this.targetX = this.x;
+        this.targetY = this.y;
+        this.lastAIUpdate = 0;
 
         this.messages = [
             "찌르지 마!", "아야! 😣", "왜 그래!", "그만해! 🙅", "간지러워!",
@@ -292,9 +427,11 @@ class Mascot {
         const wasShooting = !!this.shootInterval;
         if (wasShooting) this.stopShooting();
         this.weaponType = type;
-        // If it was shooting, we don't necessarily restart automatically 
-        // because it depends on mouse state, but usually changing weapon 
-        // in UI is enough to reset.
+        if (wasShooting) this.startShooting();
+    }
+
+    setAIType(type) {
+        this.aiType = type;
     }
 
     fireWeapon() {
@@ -319,12 +456,17 @@ class Mascot {
         const vx = Math.cos(angle - Math.PI / 2) * 15;
         const vy = Math.sin(angle - Math.PI / 2) * 15;
         projectiles.push(new Projectile(x, y, vx, vy, 'bullet'));
+        soundManager.playSpatialSound('bullet', x);
+        if (fxSettings.particles && Math.random() > 0.5) {
+            particles.push(new Particle(x, y, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, null, 'spark'));
+        }
     }
 
     fireFlame(x, y) {
         const angle = (Math.random() - 0.5) * 0.5 - Math.PI / 2;
         const speed = 5 + Math.random() * 5;
         projectiles.push(new Projectile(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 'flame'));
+        soundManager.playSpatialSound('flame', x);
     }
 
     fireGrenade(x, y) {
@@ -405,6 +547,30 @@ class Mascot {
 
     updatePosition() {
         if (!this.element) return;
+
+        // --- Behavioral AI ---
+        const now = Date.now();
+        if (this.isActionModeEnabled || this.isRunning) {
+            // Manual control or fleeing from click overrides AI
+        } else if (now - this.lastAIUpdate > 100) {
+            this.lastAIUpdate = now;
+            const distToMouse = Math.sqrt((mouseX - this.x) ** 2 + (mouseY - this.y) ** 2);
+
+            if (this.aiType === 'curious' && distToMouse < 400 && distToMouse > 50) {
+                const ang = Math.atan2(mouseY - this.y, mouseX - this.x);
+                this.vx += Math.cos(ang) * 0.1;
+                this.vy += Math.sin(ang) * 0.1;
+            } else if (this.aiType === 'shy' && distToMouse < 200) {
+                const ang = Math.atan2(this.y - mouseY, this.x - mouseX);
+                this.vx += Math.cos(ang) * 0.2;
+                this.vy += Math.sin(ang) * 0.2;
+            } else if (this.aiType === 'aggressive' && distToMouse < 500) {
+                const ang = Math.atan2(mouseY - this.y, mouseX - this.x);
+                this.vx += Math.cos(ang) * 0.3;
+                this.vy += Math.sin(ang) * 0.3;
+            }
+        }
+
         const curSpd = this.isRunning ? this.runningSpeed : this.speed;
         this.x += this.vx * (curSpd / this.speed);
         this.y += this.vy * (curSpd / this.speed);
@@ -527,6 +693,17 @@ function setupGlobalMascotUI() {
         if (actionCheck) actionCheck.checked = m.isActionModeEnabled;
         if (weaponSel) weaponSel.value = m.weaponType;
         if (weaponSec) weaponSec.style.display = m.isActionModeEnabled ? 'block' : 'none';
+
+        const aiSel = document.getElementById('mascot-ai-type');
+        if (aiSel) aiSel.value = m.aiType;
+
+        const shakeCheck = document.getElementById('fx-screen-shake');
+        const particleCheck = document.getElementById('fx-particles');
+        const soundCheck = document.getElementById('fx-sound');
+
+        if (shakeCheck) shakeCheck.checked = fxSettings.screenShake;
+        if (particleCheck) particleCheck.checked = fxSettings.particles;
+        if (soundCheck) soundCheck.checked = fxSettings.sound;
     };
 
     const tabBtns = modal.querySelectorAll('.tab-btn');
@@ -649,6 +826,30 @@ function setupGlobalMascotUI() {
         }
     });
 
+    const aiSel = document.getElementById('mascot-ai-type');
+    if (aiSel) aiSel.addEventListener('change', (e) => {
+        const m = getMascotById(selectedMascotId);
+        if (m) {
+            m.setAIType(e.target.value);
+            saveMascotsToStorage();
+        }
+    });
+
+    const shakeCheck = document.getElementById('fx-screen-shake');
+    if (shakeCheck) shakeCheck.addEventListener('change', (e) => {
+        fxSettings.screenShake = e.target.checked;
+    });
+
+    const particleCheck = document.getElementById('fx-particles');
+    if (particleCheck) particleCheck.addEventListener('change', (e) => {
+        fxSettings.particles = e.target.checked;
+    });
+
+    const soundCheck = document.getElementById('fx-sound');
+    if (soundCheck) soundCheck.addEventListener('change', (e) => {
+        fxSettings.sound = e.target.checked;
+    });
+
     const uploadInp = document.getElementById('mascot-upload');
     if (uploadInp) uploadInp.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -708,8 +909,9 @@ function saveMascotsToStorage() {
         id: m.id, image: m.currentImage, isCustom: m.isCustom, size: m.size,
         x: m.x, y: m.y, vx: m.vx, vy: m.vy, disabled: m.isDisabled,
         noFloat: m.isFloatDisabled, effect3d: m.is3DEffectEnabled,
-        actionMode: m.isActionModeEnabled, weaponType: m.weaponType
-    }))));
+        actionMode: m.isActionModeEnabled, weaponType: m.weaponType,
+        aiType: m.aiType
+    })))));
 }
 
 function loadMascotsFromStorage() {
@@ -746,12 +948,27 @@ function globalUpdate() {
         }
     }
     projectiles.forEach(p => p.update());
+
+    if (particles.length > MAX_PARTICLES) {
+        const toRemove = particles.length - MAX_PARTICLES;
+        for (let i = 0; i < toRemove; i++) {
+            if (particles[0]) particles[0].destroy();
+        }
+    }
+    particles.forEach(p => p.update());
+
     mascots.forEach(m => {
         if (!m.isDisabled) m.updatePosition();
     });
     checkAllCollisions();
     requestAnimationFrame(globalUpdate);
 }
+
+let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+window.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+});
 
 // BOOTSTRAP
 function initMascotSystem() {
