@@ -1,6 +1,102 @@
 // Mascot Character System
-let isLoadingMascots = false; // Flag to prevent save during load
-let isAdjustingSlider = false; // Flag to prevent UI updates during slider adjustment (Firefox fix)
+let isLoadingMascots = false;
+let isAdjustingSlider = false;
+
+// Central Manager for all mascots
+class MascotManager {
+    constructor() {
+        this.mascots = [];
+        this.selectedMascotId = null;
+        this.saveTimeout = null;
+        this.isDragging = false;
+
+        this.init();
+    }
+
+    init() {
+        this.animate();
+    }
+
+    add(mascot) {
+        this.mascots.push(mascot);
+    }
+
+    remove(id) {
+        const index = this.mascots.findIndex(m => m.id === id);
+        if (index !== -1) {
+            const mascot = this.mascots[index];
+            if (mascot.element) mascot.element.remove();
+            this.mascots.splice(index, 1);
+
+            if (this.selectedMascotId === id) {
+                this.selectedMascotId = this.mascots.length > 0 ? this.mascots[0].id : null;
+            }
+            this.save();
+            return true;
+        }
+        return false;
+    }
+
+    getById(id) {
+        return this.mascots.find(m => m.id === id);
+    }
+
+    // Debounced save
+    save() {
+        if (isLoadingMascots) return;
+
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => {
+            const data = this.mascots.map(m => ({
+                id: m.id,
+                image: m.currentImage,
+                isCustom: m.isCustom,
+                size: m.size,
+                x: m.x,
+                y: m.y,
+                vx: m.vx,
+                vy: m.vy,
+                disabled: m.isDisabled,
+                noFloat: m.isFloatDisabled
+            }));
+            localStorage.setItem('mascots-data', JSON.stringify(data));
+            console.log('[Mascot] Storage updated (debounced)');
+            this.saveTimeout = null;
+        }, 500);
+    }
+
+    animate() {
+        this.mascots.forEach(mascot => {
+            if (!mascot.isDisabled && !mascot.isDragging) {
+                mascot.update();
+            }
+        });
+
+        // Handle collisions between all mascots
+        this.handleCollisions();
+
+        requestAnimationFrame(() => this.animate());
+    }
+
+    handleCollisions() {
+        if (!collisionSettings.enabled) return;
+
+        for (let i = 0; i < this.mascots.length; i++) {
+            for (let j = i + 1; j < this.mascots.length; j++) {
+                const m1 = this.mascots[i];
+                const m2 = this.mascots[j];
+
+                if (m1.checkCollisionWith(m2)) {
+                    m1.handleCollision(m2);
+                }
+            }
+        }
+    }
+}
+
+const manager = new MascotManager();
+const mascots = manager.mascots; // Maintain backward compatibility for now
+let selectedMascotId = null; // Will sync with manager
 
 class Mascot {
     constructor(id, config = {}) {
@@ -11,12 +107,13 @@ class Mascot {
         this.vx = config.vx !== undefined ? config.vx : (Math.random() - 0.5) * 2;
         this.vy = config.vy !== undefined ? config.vy : (Math.random() - 0.5) * 2;
         this.speed = 1.5;
-        this.runningSpeed = 2.5; // Slowed down for readability
+        this.runningSpeed = 2.5;
         this.isRunning = false;
+        this.isDragging = false;
         this.clickCount = 0;
         this.lastClickTime = 0;
         this.isCustom = config.isCustom || false;
-        this.size = config.size || 64; // Default size
+        this.size = config.size || 64;
         this.isDisabled = config.disabled || false;
         this.isFloatDisabled = config.noFloat || false;
         this.currentImage = config.image || 'mascot.png';
@@ -65,13 +162,14 @@ class Mascot {
         this.updateVisibility();
 
         // Event listeners
+        this.element.addEventListener('mousedown', (e) => this.onDragStart(e));
         this.element.addEventListener('click', (e) => this.onClick(e));
         window.addEventListener('resize', () => this.onResize());
 
-        this.animate();
+        manager.add(this);
 
         // Only setup settings UI once (for the first mascot)
-        if (mascots.length === 0) {
+        if (manager.mascots.length === 1) {
             this.setupSettings();
         }
     }
@@ -701,8 +799,7 @@ class Mascot {
         }, 3000);
     }
 
-    animate() {
-        // Skip if element is not available
+    update() {
         if (!this.element) return;
 
         // Update position
@@ -711,7 +808,6 @@ class Mascot {
         this.y += this.vy * (currentSpeed / this.speed);
 
         // Bounce off edges with dynamic size
-        // Use offsetWidth/Height to handle auto-height correctly
         const width = this.element.offsetWidth || this.size;
         const height = this.element.offsetHeight || this.size;
 
@@ -726,9 +822,6 @@ class Mascot {
             this.vy *= -1;
             this.y = Math.max(0, Math.min(maxY, this.y));
         }
-
-        // Check collisions with other mascots
-        checkAllCollisions();
 
         // Flip direction
         if (this.vx < 0) {
@@ -753,8 +846,49 @@ class Mascot {
         // Apply position
         this.element.style.left = this.x + 'px';
         this.element.style.top = this.y + 'px';
+    }
 
-        requestAnimationFrame(() => this.animate());
+    // Drag and Drop implementation
+    onDragStart(e) {
+        if (e.button !== 0) return; // Only left click
+        e.preventDefault();
+
+        this.isDragging = true;
+        this.element.classList.add('dragging');
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const initialX = this.x;
+        const initialY = this.y;
+
+        const onMouseMove = (moveEvent) => {
+            this.x = initialX + (moveEvent.clientX - startX);
+            this.y = initialY + (moveEvent.clientY - startY);
+
+            // Apply position immediately for smooth drag
+            this.element.style.left = this.x + 'px';
+            this.element.style.top = this.y + 'px';
+        };
+
+        const onMouseUp = () => {
+            this.isDragging = false;
+            this.element.classList.remove('dragging');
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+
+            // Stop movement for a second after dragging
+            this.vx = 0;
+            this.vy = 0;
+            setTimeout(() => {
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+            }, 1000);
+
+            manager.save();
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
     }
 
     // Collision Detection Methods
@@ -899,170 +1033,78 @@ let collisionFrameCounter = 0;
 const COLLISION_CHECK_INTERVAL = 2; // Check every N frames
 
 // Check collisions between all mascots
-function checkAllCollisions() {
-    if (!collisionSettings.enabled || mascots.length < 2) return;
-
-    // Throttle collision checks for performance
-    collisionFrameCounter++;
-    if (collisionFrameCounter < COLLISION_CHECK_INTERVAL) return;
-    collisionFrameCounter = 0;
-
-    // Check each pair of mascots only once
-    for (let i = 0; i < mascots.length; i++) {
-        for (let j = i + 1; j < mascots.length; j++) {
-            const mascot1 = mascots[i];
-            const mascot2 = mascots[j];
-
-            if (mascot1.checkCollisionWith(mascot2)) {
-                mascot1.handleCollision(mascot2);
-            }
-        }
-    }
-}
-
-// Multi-Mascot Management System
-let mascots = [];
-let selectedMascotId = null;
+// (이제 MascotManager.handleCollisions()에서 처리됨)
 
 // Generate unique ID for mascots
 function generateMascotId() {
     return 'mascot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-// Add new mascot
+// Compatibility wrappers for existing UI code
 function addMascot(config = {}, skipSave = false) {
     const id = config.id || generateMascotId();
     const mascot = new Mascot(id, config);
-    mascots.push(mascot);
-    if (!skipSave && !isLoadingMascots) {
-        saveMascotsToStorage();
-    }
+    // Note: Mascot constructor calls manager.add(this)
+    if (!skipSave) manager.save();
     return mascot;
 }
 
-// Remove mascot by ID
 function removeMascot(id) {
-    const index = mascots.findIndex(m => m.id === id);
-    if (index !== -1) {
-        const mascot = mascots[index];
-        if (mascot.element) {
-            mascot.element.remove();
-        }
-        mascots.splice(index, 1);
-
-        // If removed mascot was selected, clear selection
-        if (selectedMascotId === id) {
-            selectedMascotId = mascots.length > 0 ? mascots[0].id : null;
-        }
-
-        saveMascotsToStorage();
-        return true;
-    }
-    return false;
+    return manager.remove(id);
 }
 
-// Get mascot by ID
 function getMascotById(id) {
-    return mascots.find(m => m.id === id);
+    return manager.getById(id);
 }
 
-// Save all mascots to localStorage
 function saveMascotsToStorage() {
-    const mascotsData = mascots.map(m => ({
-        id: m.id,
-        image: m.currentImage,
-        isCustom: m.isCustom,
-        size: m.size,
-        x: m.x,
-        y: m.y,
-        vx: m.vx,
-        vy: m.vy,
-        disabled: m.isDisabled,
-        noFloat: m.isFloatDisabled
-    }));
-
-    const jsonData = JSON.stringify(mascotsData);
-    localStorage.setItem('mascots-data', jsonData);
-
-    // Debug: verify save immediately
-    console.log('[Mascot] Saved:', mascotsData.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
+    manager.save();
 }
 
-// Load all mascots from localStorage
 function loadMascotsFromStorage() {
-    isLoadingMascots = true; // Set flag to prevent save during load
-
-    // Try to load new format first
+    isLoadingMascots = true;
     const mascotsDataStr = localStorage.getItem('mascots-data');
 
     if (mascotsDataStr) {
         try {
             const mascotsData = JSON.parse(mascotsDataStr);
-
-            // Debug: show loaded data
-            console.log('[Mascot] Loading:', mascotsData.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
-
-            mascotsData.forEach(data => {
-                addMascot(data, true); // Skip save during load
-            });
-
-            // Select first mascot
-            if (mascots.length > 0) {
-                selectedMascotId = mascots[0].id;
+            mascotsData.forEach(data => addMascot(data, true));
+            if (manager.mascots.length > 0) {
+                selectedMascotId = manager.mascots[0].id;
             }
-
-            // Debug: verify loaded sizes
-            console.log('[Mascot] After load:', mascots.map(m => `id:${m.id.slice(-4)}, size:${m.size}`).join(', '));
-
-            isLoadingMascots = false; // Reset flag
+            isLoadingMascots = false;
             return;
         } catch (e) {
             console.error('Failed to load mascots data:', e);
         }
     }
 
-    // Migrate old single mascot format
+    // Migration logic
     const oldImage = localStorage.getItem('mascot-image');
-    const oldIsCustom = localStorage.getItem('mascot-is-custom') === 'true';
-    const oldSize = parseInt(localStorage.getItem('mascot-size')) || 64;
-    const oldDisabled = localStorage.getItem('mascot-disabled') === 'true';
-    const oldNoFloat = localStorage.getItem('mascot-no-float') === 'true';
-
     if (oldImage) {
-        // Migrate old data to new format
         addMascot({
             image: oldImage,
-            isCustom: oldIsCustom,
-            size: oldSize,
-            disabled: oldDisabled,
-            noFloat: oldNoFloat
+            isCustom: localStorage.getItem('mascot-is-custom') === 'true',
+            size: parseInt(localStorage.getItem('mascot-size')) || 64,
+            disabled: localStorage.getItem('mascot-disabled') === 'true',
+            noFloat: localStorage.getItem('mascot-no-float') === 'true'
         });
-
-        // Clean up old localStorage keys
-        localStorage.removeItem('mascot-image');
-        localStorage.removeItem('mascot-is-custom');
-        localStorage.removeItem('mascot-size');
-        localStorage.removeItem('mascot-disabled');
-        localStorage.removeItem('mascot-no-float');
-
-        saveMascotsToStorage();
+        ['mascot-image', 'mascot-is-custom', 'mascot-size', 'mascot-disabled', 'mascot-no-float'].forEach(k => localStorage.removeItem(k));
+        manager.save();
     } else {
-        // No existing data, create default mascot
         addMascot({});
     }
 
-    // Select first mascot
-    if (mascots.length > 0) {
-        selectedMascotId = mascots[0].id;
+    if (manager.mascots.length > 0) {
+        selectedMascotId = manager.mascots[0].id;
     }
-
-    isLoadingMascots = false; // Reset flag after load complete
+    isLoadingMascots = false;
 }
 
-// Initialize mascots when page loads
+// Initialize mascots
 function initMascots() {
     loadMascotsFromStorage();
 }
 
-// Auto-start mascots
+// Auto-start
 setTimeout(initMascots, 1000);
