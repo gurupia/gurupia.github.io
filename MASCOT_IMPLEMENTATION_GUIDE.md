@@ -100,6 +100,8 @@ const fxSettings = {             // Global toggles
 };
 ```
 
+---
+
 ## 5. Global Event Loop
 
 The `globalUpdate()` function drives the entire system using `requestAnimationFrame`.
@@ -109,3 +111,39 @@ The `globalUpdate()` function drives the entire system using `requestAnimationFr
 3. **Mascot Update**: Apply velocity, execute AI logic, handle wall collisions.
 4. **Collision Check**: O(N^2) check between all mascots for physics interaction.
 5. **Loop**: Request next frame.
+
+---
+
+## 6. Mascot Animator (WebP Generator)
+
+`mascot-animator` is a standalone tool in the `/mascot-animator` directory for converting static images into animated WebP/GIFs.
+
+### 6.1 Key Features
+- **Source Support**: Images (PNG, JPG) & Video (MP4, WebM) files or URLs.
+- **Procedural Animations**: Breathing, Floating, Jump, Shake, Squash, Spin, etc.
+- **Export Formats**:
+  - `Animated WebP`: Supports transparency, high compression.
+  - `GIF`: Supports transparency, palette optimization.
+  - `WebM`: Transparent video (VP9 codec).
+
+### 6.2 Transparency Assurance (Frame-by-Frame Rendering)
+Browser `MediaRecorder` APIs often lose alpha channel information during real-time compression, resulting in black backgrounds. We solved this using **Frame-by-Frame Rendering**:
+
+1. **Capture**: Extract every frame from the canvas as a lossless PNG Blob (`canvas.toBlob`).
+2. **Buffer**: Store images sequentially in `ffmpeg.wasm`'s virtual filesystem (MEMFS) (`frame_001.png`, ...).
+3. **Encoding**: Use FFmpeg to convert the PNG sequence to the final format.
+   - **WebP**: Uses `libwebp` codec with `-lossless 1` and `-vcodec rgba`.
+   - **GIF**: Uses `palettegen` and `paletteuse` filters for high-quality transparency.
+
+### 6.3 Security Requirements
+`ffmpeg.wasm` requires `SharedArrayBuffer` for performance. Modern browsers block this unless specific security headers are present:
+
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+
+**Solution**:
+The tool will not work fully on `file://`. Use the included `server.py` to serve with headers:
+```bash
+python server.py
+# Serves at http://localhost:8080 with correct headers
+```

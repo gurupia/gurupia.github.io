@@ -100,6 +100,8 @@ const fxSettings = {             // 전역 토글
 };
 ```
 
+---
+
 ## 5. 전역 이벤트 루프
 
 `globalUpdate()` 함수는 `requestAnimationFrame`을 사용하여 전체 시스템을 구동합니다.
@@ -109,3 +111,39 @@ const fxSettings = {             // 전역 토글
 3. **마스코트 업데이트**: 속도 적용, AI 로직 실행, 벽 충돌 처리.
 4. **충돌 체크**: 물리 상호작용을 위한 모든 마스코트 간의 O(N^2) 검사.
 5. **루프**: 다음 프레임 요청.
+
+---
+
+## 6. 마스코트 애니메이터 (WebP Generator)
+
+`mascot-animator`는 정적 이미지를 움직이는 WebP/GIF로 변환하는 독립형 도구입니다.
+
+### 6.1 주요 기능
+- **소스 지원**: 이미지(PNG, JPG) 및 비디오(MP4, WebM) 파일/URL.
+- **절차적 애니메이션**: Breathing, Floating, Jump, Shake, Squash, Spin 등.
+- **내보내기 포맷**:
+  - `Animated WebP`: 투명 배경 지원, 고압축.
+  - `GIF`: 투명 배경 지원, 팔레트 최적화.
+  - `WebM`: 투명 비디오 (VP9 코덱).
+
+### 6.2 투명도 보장 기술 (Frame-by-Frame Rendering)
+브라우저의 `MediaRecorder` API는 실시간 압축 시 알파 채널(투명도)을 종종 유실하거나 검은 배경으로 처리하는 문제가 있습니다. 이를 해결하기 위해 **프레임 단위 렌더링** 방식을 채택했습니다.
+
+1. **캡처 (Capture)**: 캔버스의 매 프레임을 무손실 PNG Blob으로 추출 (`canvas.toBlob`).
+2. **저장 (Buffer)**: 추출된 이미지들을 `ffmpeg.wasm`의 가상 파일 시스템(MEMFS)에 순차 저장 (`frame_001.png`, ...).
+3. **인코딩 (Encoding)**: FFmpeg를 사용하여 PNG 시퀀스를 최종 포맷(WebP/GIF)으로 변환.
+   - **WebP**: `libwebp` 코덱, `-lossless 1`, `-vcodec rgba` 사용.
+   - **GIF**: `palettegen` 및 `paletteuse` 필터를 사용하여 고품질 투명도 확보.
+
+### 6.3 보안 요구사항 (Security Requirements)
+`ffmpeg.wasm`은 고성능 처리를 위해 `SharedArrayBuffer`를 사용합니다. 브라우저 보안 정책상 이를 사용하려면 다음 HTTP 헤더가 필수입니다.
+
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+
+**해결책**:
+`file://` 프로토콜에서는 작동하지 않으므로, 포함된 `server.py`를 사용하여 로컬 서버를 구동해야 합니다.
+```bash
+python server.py
+# http://localhost:8080 에서 헤더와 함께 서빙됨
+```

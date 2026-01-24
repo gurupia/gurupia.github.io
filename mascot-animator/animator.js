@@ -18,6 +18,7 @@ let isSourceLoaded = false;
 let isVideo = false;
 let time = 0;
 let animationId = null;
+let isRecording = false; // Moved here to fix scoping issue
 
 // Settings
 let state = {
@@ -115,7 +116,7 @@ ampRange.addEventListener('input', (e) => {
 });
 
 // --- Render Loop ---
-function animate() {
+function drawScene() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (isSourceLoaded && mediaSource) {
@@ -177,8 +178,13 @@ function animate() {
         ctx.drawImage(mediaSource, -drawW / 2, -drawH / 2, drawW, drawH);
         ctx.restore();
     }
+}
 
-    time++;
+function animate() {
+    if (!isRecording) {
+        drawScene();
+        time++;
+    }
     animationId = requestAnimationFrame(animate);
 }
 animate();
@@ -190,9 +196,10 @@ let recordedChunks = [];
 recordBtn.addEventListener('click', async () => {
     if (!isSourceLoaded) return alert('Please load an image or video first!');
 
+    // Security Check for FFmpeg (WebP/GIF)
     if (state.format !== 'webm') {
         if (isFileProtocol) {
-            alert('⚠️ Security Restriction:\nFFmpeg cannot run on file:// protocol because SharedArrayBuffer is blocked.\n\nPlease run a local server (localhost) to use WebP/GIF export.\nUse "Live Server" extension or "python -m http.server".\n\nFalling back to WebM.');
+            alert('⚠️ Security Restriction:\nFFmpeg cannot run on file:// protocol because SharedArrayBuffer is blocked.\nRun on localhost to use WebP/GIF export.\n\nFalling back to WebM.');
             state.format = 'webm';
             exportSelect.value = 'webm';
         } else if (!ffmpeg.isLoaded()) {
@@ -200,8 +207,8 @@ recordBtn.addEventListener('click', async () => {
             try {
                 await ffmpeg.load();
             } catch (e) {
-                alert('FFmpeg Failed to load! Falling back to WebM.');
                 console.error(e);
+                alert('⚠️ FFmpeg Load Failed!\n\nReason: SharedArrayBuffer is likely blocked.\n\nSolution:\n1. Run "python server.py" (included in repo).\n2. Reload this page.\n\nFalling back to WebM (Black background in some players).');
                 state.format = 'webm';
                 exportSelect.value = 'webm';
             }
@@ -209,16 +216,34 @@ recordBtn.addEventListener('click', async () => {
     }
 
     startRecording();
-    recordBtn.disabled = true;
-    recordBtn.textContent = 'Recording...';
-    recordBtn.classList.add('recording');
-    recordingStatus.textContent = 'Capturing 3 seconds...';
-
-    setTimeout(() => { stopRecording(); }, 3000);
 });
 
-function startRecording() {
+async function startRecording() {
+    isRecording = true;
+    toggleControls(false);
+
+    if (state.format === 'webm') {
+        recordWebM();
+    } else {
+        await recordFrameSequence();
+    }
+}
+
+function toggleControls(enabled) {
+    document.querySelectorAll('button, input, select').forEach(el => el.disabled = !enabled);
+    if (!enabled) {
+        recordBtn.textContent = 'Recording...';
+        recordBtn.classList.add('recording');
+    } else {
+        recordBtn.textContent = '🔴 Record (3s)';
+        recordBtn.classList.remove('recording');
+    }
+}
+
+// Method 1: Fast WebM Recording (Standard)
+function recordWebM() {
     const stream = canvas.captureStream(60);
+    // Try VP9 for better alpha support in some browsers
     const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
     let options = { mimeType: '' };
     for (let t of types) {
@@ -227,62 +252,163 @@ function startRecording() {
 
     mediaRecorder = new MediaRecorder(stream, options);
     recordedChunks = [];
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-        const webmBlob = new Blob(recordedChunks, { type: 'video/webm' });
-        previewVideo.src = URL.createObjectURL(webmBlob);
 
-        if (state.format === 'webm') {
-            downloadLink.href = URL.createObjectURL(webmBlob);
-            downloadLink.download = `mascot_${state.anim}.webm`;
-            downloadLink.textContent = '⬇️ Download WebM';
-            downloadSection.style.display = 'block';
-            resetBtn();
-        } else {
-            recordingStatus.textContent = `Converting to ${state.format.toUpperCase()}...`;
-            try {
-                await convertFormat(webmBlob, state.format);
-                resetBtn();
-                recordingStatus.textContent = 'Done!';
-            } catch (e) {
-                console.error(e);
-                recordingStatus.textContent = 'Conversion failed.';
-                resetBtn();
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        previewVideo.src = URL.createObjectURL(blob);
+        finishRecording(blob);
+    };
+
+    recordingStatus.textContent = "Recording WebM...";
+    mediaRecorder.start();
+
+    setTimeout(() => {
+        if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+    }, 3000);
+}
+
+// Method 2: High-Quality Frame Capture (WebP/GIF)
+async function recordFrameSequence() {
+    recordingStatus.textContent = "Capturing Frames...";
+
+    const frames = [];
+    const fps = 30; // 30fps is standard for GIF/WebP export
+    const duration = 3;
+    const totalFrames = fps * duration;
+
+    const originalTime = time;
+    time = 0; // Reset animation for clean loop
+
+    try {
+        for (let i = 0; i < totalFrames; i++) {
+            // 1. Draw Frame
+            drawScene();
+
+            // 2. Capture Blob (PNG preserves full transparency)
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            frames.push(blob);
+
+            // 3. Advance Logic
+            // Advance by 2 units per frame (since native is ~60hz, and export is 30hz)
+            time += 2;
+
+            if (i % 5 === 0) {
+                recordingStatus.textContent = `Capturing: ${Math.round((i / totalFrames) * 100)}%`;
+                await new Promise(r => setTimeout(r, 0)); // Yield UI
             }
         }
-    };
-    mediaRecorder.start();
+
+        recordingStatus.textContent = "Encoding...";
+        await convertFramesToOutput(frames, state.format, fps);
+
+    } catch (e) {
+        console.error(e);
+        alert("Recording Failed: " + e.message);
+    } finally {
+        time = originalTime; // Restore
+        isRecording = false;
+        toggleControls(true);
+        recordingStatus.textContent = "Done!";
+    }
 }
 
-function stopRecording() {
-    mediaRecorder.stop();
-}
+async function convertFramesToOutput(frames, format, fps) {
+    if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-function resetBtn() {
-    recordBtn.disabled = false;
-    recordBtn.textContent = '🔴 Record (3s)';
-    recordBtn.classList.remove('recording');
-}
+    // Clear FS
+    try {
+        const potentialFiles = ffmpeg.FS('readdir', '/');
+        for (const f of potentialFiles) {
+            if (f.startsWith('frame_')) ffmpeg.FS('unlink', f);
+        }
+    } catch (e) { }
 
-async function convertFormat(webmBlob, format) {
-    if (!ffmpeg.isLoaded()) throw new Error('FFmpeg not loaded');
-    ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
+    // Write Frames
+    recordingStatus.textContent = "Writing frames...";
+    for (let i = 0; i < frames.length; i++) {
+        const name = `frame_${i.toString().padStart(3, '0')}.png`;
+        ffmpeg.FS('writeFile', name, await fetchFile(frames[i]));
+    }
+
+    recordingStatus.textContent = "Encoding (please wait)...";
 
     if (format === 'webp') {
-        await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libwebp', '-lossless', '0', '-q:v', '90', '-loop', '0', '-preset', 'default', '-an', '-vsync', '0', '-pix_fmt', 'yuva420p', 'output.webp');
+        // PNG Sequence -> Animated WebP (Lossless, Transparent)
+        await ffmpeg.run(
+            '-framerate', `${fps}`,
+            '-i', 'frame_%03d.png',
+            '-vcodec', 'libwebp',
+            '-lossless', '1',
+            '-loop', '0',
+            '-preset', 'default',
+            '-an',
+            'output.webp'
+        );
+
         const data = ffmpeg.FS('readFile', 'output.webp');
         const blob = new Blob([data.buffer], { type: 'image/webp' });
+
+        // Show Image Preview instead of Video for WebP
+        previewVideo.style.display = 'none';
+
+        // Remove existing img preview if any
+        const existingImg = downloadSection.querySelector('img');
+        if (existingImg) existingImg.remove();
+
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '300px';
+        img.style.display = 'block';
+        img.style.margin = '0 auto';
+        downloadSection.insertBefore(img, downloadLink);
+
         downloadLink.href = URL.createObjectURL(blob);
         downloadLink.download = `mascot_${state.anim}.webp`;
         downloadLink.textContent = '⬇️ Download Animated WebP';
+
     } else if (format === 'gif') {
-        await ffmpeg.run('-i', 'input.webm', '-vf', 'palettegen=reserve_transparent=1', 'palette.png');
-        await ffmpeg.run('-i', 'input.webm', '-i', 'palette.png', '-lavfi', 'paletteuse=alpha_threshold=128', '-gifflags', '-offsetting', 'output.gif');
+        // PNG Sequence -> Palette -> GIF (Transparent)
+        // 1. Generate Palette
+        await ffmpeg.run(
+            '-framerate', `${fps}`,
+            '-i', 'frame_%03d.png',
+            '-vf', 'palettegen=reserve_transparent=1',
+            '-update', '1',
+            'palette.png'
+        );
+        // 2. Encode GIF
+        await ffmpeg.run(
+            '-framerate', `${fps}`,
+            '-i', 'frame_%03d.png',
+            '-i', 'palette.png',
+            '-lavfi', 'paletteuse=alpha_threshold=128',
+            '-gifflags', '-offsetting',
+            'output.gif'
+        );
+
         const data = ffmpeg.FS('readFile', 'output.gif');
         const blob = new Blob([data.buffer], { type: 'image/gif' });
+
         downloadLink.href = URL.createObjectURL(blob);
         downloadLink.download = `mascot_${state.anim}.gif`;
         downloadLink.textContent = '⬇️ Download Animated GIF';
     }
+
+    // Cleanup
+    for (let i = 0; i < frames.length; i++) {
+        ffmpeg.FS('unlink', `frame_${i.toString().padStart(3, '0')}.png`);
+    }
+
     downloadSection.style.display = 'block';
+}
+
+function finishRecording(blob) {
+    toggleControls(true);
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `mascot_${state.anim}.webm`;
+    downloadLink.textContent = '⬇️ Download WebM';
+    downloadSection.style.display = 'block';
+    recordingStatus.textContent = "Done!";
 }
