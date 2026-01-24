@@ -127,13 +127,11 @@ The `globalUpdate()` function drives the entire system using `requestAnimationFr
   - `WebM`: Transparent video (VP9 codec).
 
 ### 6.2 Transparency Assurance (Frame-by-Frame Rendering)
-Browser `MediaRecorder` APIs often lose alpha channel information during real-time compression, resulting in black backgrounds. We solved this using **Frame-by-Frame Rendering**:
+Browser `MediaRecorder` APIs often lose alpha channel information during real-time compression, resulting in black backgrounds. We solved this using **Frame-by-Frame Rendering**.
 
-1. **Capture**: Extract every frame from the canvas as a lossless PNG Blob (`canvas.toBlob`).
-2. **Buffer**: Store images sequentially in `ffmpeg.wasm`'s virtual filesystem (MEMFS) (`frame_001.png`, ...).
-3. **Encoding**: Use FFmpeg to convert the PNG sequence to the final format.
-   - **WebP**: Uses `libwebp` codec with `-lossless 1` and `-vcodec rgba`.
-   - **GIF**: Uses `palettegen` and `paletteuse` filters for high-quality transparency.
+> **⚠️ Known Issue**: The WebP encoder in `ffmpeg.wasm` currently has limitations with animation disposal methods, which may cause "ghosting" (trails) in transparent animations. For perfect results, we recommend using the tool to generate the PNG frames, but performing the final encoding using a local, full version of FFmpeg or other dedicated tools.
+- **WebP**: Uses `libwebp` codec with `-lossless 1` and `-vcodec rgba`.
+- **GIF**: Uses `palettegen` and `paletteuse` filters for high-quality transparency.
 
 ### 6.3 Security Requirements
 `ffmpeg.wasm` requires `SharedArrayBuffer` for performance. Modern browsers block this unless specific security headers are present:

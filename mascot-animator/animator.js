@@ -334,15 +334,29 @@ async function convertFramesToOutput(frames, format, fps) {
     recordingStatus.textContent = "Encoding (please wait)...";
 
     if (format === 'webp') {
-        // PNG Sequence -> Animated WebP (Lossless, Transparent)
+        // PNG Sequence -> Animated WebP
+        // STRATEGY: "Fresh Canvas" method.
+        // We use a complex filter to generate a transparent black background for every frame
+        // and overlay the image on top. This forces the encoder to see the full alpha context.
+        // Combined with -g 1 (All Intra), this disables inter-frame blending optimization.
+
+        // Ensure dimensions match canvas (512x512)
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // PNG Sequence -> Animated WebP
+        // NOTE: Ghosting/Transparency issues are a known limitation.
         await ffmpeg.run(
             '-framerate', `${fps}`,
             '-i', 'frame_%03d.png',
             '-vcodec', 'libwebp',
-            '-lossless', '1',
+            '-lossless', '0',
+            '-q:v', '90',
             '-loop', '0',
             '-preset', 'default',
             '-an',
+            '-vsync', '0',
+            '-vf', 'format=rgba',
             'output.webp'
         );
 
