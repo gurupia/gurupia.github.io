@@ -459,18 +459,43 @@ async function convertFramesToOutput(frames, format, fps) {
         stripCanvas.toBlob(blob => {
             const url = URL.createObjectURL(blob);
 
-            // Preview Image (Scaled down)
-            const img = document.createElement('img');
-            img.src = url;
-            img.style.maxWidth = '100%';
-            img.style.maxHeight = '150px'; // Strip is wide, keep height small
-            img.style.border = '1px solid #333';
-            img.style.display = 'block';
+            // Preview: Render actual CSS animation in the preview box
+            const previewContainer = document.getElementById('spritePreviewContainer');
+            const previewDiv = document.getElementById('spritePreview');
 
             previewVideo.style.display = 'none';
             const existingImg = downloadSection.querySelector('img');
             if (existingImg) existingImg.remove();
-            downloadSection.insertBefore(img, downloadLink);
+
+            // Show new preview container
+            previewContainer.style.display = 'flex';
+
+            // Apply Dynamic Styles to preview div
+            const duration = (frames.length / 30).toFixed(1); // 30fps assumption
+            previewDiv.style.width = '512px';
+            previewDiv.style.height = '512px';
+            previewDiv.style.backgroundImage = `url('${url}')`;
+            previewDiv.style.backgroundRepeat = 'no-repeat';
+
+            // We need to inject the keyframes into the document to animate firmly
+            // Calculate step distance
+            const finalPos = -totalWidth;
+
+            // Create a unique name for this animation run
+            const animName = `play_${Date.now()}`;
+            const styleEl = document.createElement('style');
+            styleEl.innerHTML = `
+                @keyframes ${animName} {
+                    100% { background-position: ${finalPos}px 0; }
+                }
+            `;
+            document.head.appendChild(styleEl);
+
+            previewDiv.style.animation = `${animName} ${duration}s steps(${frames.length}) infinite`;
+
+            // Scale down preview if too big
+            const scale = Math.min(300 / 512, 1);
+            previewDiv.style.transform = `scale(${scale})`;
 
             // 5. Generate CSS
             const duration = (frames.length / 30).toFixed(1); // 30fps assumption
@@ -492,9 +517,6 @@ async function convertFramesToOutput(frames, format, fps) {
             downloadLink.download = `mascot_${state.anim}.png`;
             downloadLink.textContent = '⬇️ Download Sprite PNG';
 
-            downloadSection.style.display = 'block';
-            recordingStatus.textContent = "Done!";
-            toggleControls(true);
         }, 'image/png');
 
         return; // Skip FFmpeg cleanup
