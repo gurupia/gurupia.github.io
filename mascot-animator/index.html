@@ -61,6 +61,7 @@
                     <select id="exportFormat">
                         <option value="webp">Animated WebP (Transparent)</option>
                         <option value="webm_hq">WebM (High Quality / FFmpeg)</option>
+                        <option value="sprite">CSS Sprite Sheet (Ghosting-Free)</option>
                         <option value="gif">GIF (Transparent)</option>
                         <option value="webm">WebM (Fast / MediaRecorder)</option>
                     </select>
@@ -74,7 +75,14 @@
                 <div class="download-section" id="downloadSection" style="display:none;">
                     <h3>Result</h3>
                     <video id="previewVideo" controls autoplay loop></video>
-                    <a id="downloadLink" class="btn success">⬇️ Download WebM</a>
+
+                    <div id="cssOutputContainer" style="display: none; margin-bottom: 10px;">
+                        <label>CSS Code (Copy & Paste):</label>
+                        <textarea id="cssOutput" rows="6" readonly
+                            style="width: 100%; background: #0d1117; color: #00ff41; border: 1px solid #30363d; padding: 10px; font-family: monospace; font-size: 0.8em;"></textarea>
+                    </div>
+
+                    <a id="downloadLink" class="btn success">⬇️ Download</a>
                     <p class="note">* WebP converting requires external tools or ffmpeg (WebM is standard transparency
                         video)</p>
                 </div>

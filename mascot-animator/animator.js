@@ -436,9 +436,71 @@ async function convertFramesToOutput(frames, format, fps) {
         downloadLink.href = URL.createObjectURL(blob);
         downloadLink.download = `mascot_${state.anim}.webm`;
         downloadLink.textContent = '⬇️ Download High-Quality WebM';
+    } else if (format === 'sprite') {
+        // Sprite Sheet Generation (No FFmpeg)
+        // 1. Calculate dimensions
+        const width = 512;
+        const height = 512;
+        const totalWidth = width * frames.length;
+
+        // 2. Create Strip Canvas
+        const stripCanvas = document.createElement('canvas');
+        stripCanvas.width = totalWidth;
+        stripCanvas.height = height;
+        const stripCtx = stripCanvas.getContext('2d');
+
+        // 3. Draw frames
+        for (let i = 0; i < frames.length; i++) {
+            const imgBitmap = await createImageBitmap(frames[i]);
+            stripCtx.drawImage(imgBitmap, i * width, 0, width, height);
+        }
+
+        // 4. Export PNG
+        stripCanvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+
+            // Preview Image (Scaled down)
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '150px'; // Strip is wide, keep height small
+            img.style.border = '1px solid #333';
+            img.style.display = 'block';
+
+            previewVideo.style.display = 'none';
+            const existingImg = downloadSection.querySelector('img');
+            if (existingImg) existingImg.remove();
+            downloadSection.insertBefore(img, downloadLink);
+
+            // 5. Generate CSS
+            const duration = (frames.length / 30).toFixed(1); // 30fps assumption
+            const cssCode = `.mascot {
+    width: 512px;
+    height: 512px;
+    background: url('mascot_${state.anim}.png') no-repeat;
+    animation: play_${state.anim} ${duration}s steps(${frames.length}) infinite;
+}
+
+@keyframes play_${state.anim} {
+    100% { background-position: -${totalWidth}px 0; }
+}`;
+            document.getElementById('cssOutput').value = cssCode;
+            document.getElementById('cssOutputContainer').style.display = 'block';
+
+            // Download Link
+            downloadLink.href = url;
+            downloadLink.download = `mascot_${state.anim}.png`;
+            downloadLink.textContent = '⬇️ Download Sprite PNG';
+
+            downloadSection.style.display = 'block';
+            recordingStatus.textContent = "Done!";
+            toggleControls(true);
+        }, 'image/png');
+
+        return; // Skip FFmpeg cleanup
     }
 
-    // Cleanup
+    // Cleanup FFmpeg files
     for (let i = 0; i < frames.length; i++) {
         ffmpeg.FS('unlink', `frame_${i.toString().padStart(3, '0')}.png`);
     }
