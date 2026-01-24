@@ -145,3 +145,12 @@ const fxSettings = {             // 전역 토글
 python server.py
 # http://localhost:8080 에서 헤더와 함께 서빙됨
 ```
+
+---
+
+## 7. [실험적] 배경 제거 도구 (Background Remover)
+
+`/background-remover` 경로에 위치한 실험적 기능입니다. `@imgly/background-removal` 라이브러리를 사용하여 클라이언트 측에서 배경 제거를 시도합니다.
+
+> **⚠️ Known Issue (미해결 문제)**: 현재 로컬 개발 서버 환경(`localhost`)에서는 WASM/ONNX 모델 파일 로딩 시 CORS 또는 경로 문제로 인해 "Conversion Failed" 오류가 발생하여 정상 작동하지 않습니다. 상용 배포 환경(HTTPS)이나 특정 설정을 갖춘 서버가 필요할 수 있습니다.
+

@@ -145,3 +145,12 @@ The tool will not work fully on `file://`. Use the included `server.py` to serve
 python server.py
 # Serves at http://localhost:8080 with correct headers
 ```
+
+---
+
+## 7. [Experimental] Background Remover Tool
+
+Located at `/background-remover`. This feature attempts to remove image backgrounds client-side using `@imgly/background-removal`.
+
+> **⚠️ Known Issue**: In the current local development environment (`localhost`), fetching the AI model (WASM/ONNX) files often fails with a "Conversion Failed" error due to CORS or path resolution issues. This feature likely requires a production HTTPS environment or specific server configuration to work reliably.
+
