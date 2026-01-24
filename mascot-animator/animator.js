@@ -223,9 +223,9 @@ async function startRecording() {
     toggleControls(false);
 
     if (state.format === 'webm') {
-        recordWebM();
+        recordWebM(); // Fast native recording
     } else {
-        await recordFrameSequence();
+        await recordFrameSequence(); // High quality frame-by-frame (WebP, GIF, WebM HQ)
     }
 }
 
@@ -408,6 +408,34 @@ async function convertFramesToOutput(frames, format, fps) {
         downloadLink.href = URL.createObjectURL(blob);
         downloadLink.download = `mascot_${state.anim}.gif`;
         downloadLink.textContent = '⬇️ Download Animated GIF';
+
+    } else if (format === 'webm_hq') {
+        // PNG Sequence -> WebM (VP9)
+        // VP9 supports transparency natively and handles alpha much better than WebP animation in ffmpeg.wasm
+        await ffmpeg.run(
+            '-framerate', `${fps}`,
+            '-i', 'frame_%03d.png',
+            '-c:v', 'libvpx-vp9', // VP9 codec
+            '-b:v', '0',          // Constant quality mode
+            '-crf', '30',         // Quality (lower is better, 30 is balanced)
+            '-pix_fmt', 'yuva420p', // Important for alpha
+            '-an',
+            'output.webm'
+        );
+
+        const data = ffmpeg.FS('readFile', 'output.webm');
+        const blob = new Blob([data.buffer], { type: 'video/webm' });
+
+        previewVideo.src = URL.createObjectURL(blob);
+        previewVideo.style.display = 'block';
+
+        // Cleanup img preview
+        const existingImg = downloadSection.querySelector('img');
+        if (existingImg) existingImg.remove();
+
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = `mascot_${state.anim}.webm`;
+        downloadLink.textContent = '⬇️ Download High-Quality WebM';
     }
 
     // Cleanup
