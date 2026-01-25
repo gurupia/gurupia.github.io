@@ -131,7 +131,7 @@ Browser `MediaRecorder` APIs often lose alpha channel information during real-ti
 
 > **⚠️ Known Issue**: The WebP encoder in `ffmpeg.wasm` currently has limitations with animation disposal methods, which may cause "ghosting" (trails) in transparent animations. For perfect results, we recommend using the tool to generate the PNG frames, but performing the final encoding using a local, full version of FFmpeg or other dedicated tools.
 - **WebM (HQ)**: Uses `libvpx-vp9` with `yuva420p` for high-quality transparent video.
-- **Sprite Sheet**: The perfect alternative for zero artifacts. Generates a single PNG strip and provides ready-to-use CSS `steps()` animation code.
+- **Sprite Sheet**: The perfect alternative for zero artifacts. Generates a single PNG strip and provides ready-to-use CSS `steps()` animation code. **(Includes live animation preview)**
 
 ### 6.3 Security Requirements
 `ffmpeg.wasm` requires `SharedArrayBuffer` for performance. Modern browsers block this unless specific security headers are present:

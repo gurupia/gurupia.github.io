@@ -1,4 +1,4 @@
-const canvas = document.getElementById('canvas');
+\const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const imgInput = document.getElementById('imageInput');
 const urlInput = document.getElementById('urlInput');
@@ -498,7 +498,7 @@ async function convertFramesToOutput(frames, format, fps) {
             previewDiv.style.transform = `scale(${scale})`;
 
             // 5. Generate CSS
-            const duration = (frames.length / 30).toFixed(1); // 30fps assumption
+            // duration is already calculated above
             const cssCode = `.mascot {
     width: 512px;
     height: 512px;

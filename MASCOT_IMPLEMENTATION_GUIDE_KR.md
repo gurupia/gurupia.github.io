@@ -131,7 +131,7 @@ const fxSettings = {             // 전역 토글
 
 > **⚠️ Known Issue (알려진 문제)**: 현재 `ffmpeg.wasm` 기반의 WebP 인코더는 애니메이션 투명도 처리(WebP Disposal Method)에 한계가 있어, 복잡한 움직임에서 잔상(Ghosting)이 남을 수 있습니다. 완벽한 결과물을 위해서는 생성된 프레임(PNG)을 다운로드하여 로컬 FFmpeg 최신 버전에서 변환하는 것을 권장합니다.
 - **WebM (HQ)**: `libvpx-vp9` 코덱을 사용하여 투명도 손실 없는 고화질 비디오 생성.
-- **Sprite Sheet**: 잔상 문제의 완벽한 대안. 모든 프레임을 가로로 연결한 단일 PNG 이미지와 CSS `steps()` 애니메이션 코드를 생성합니다.
+- **Sprite Sheet**: 잔상 문제의 완벽한 대안. 모든 프레임을 가로로 연결한 단일 PNG 이미지와 CSS `steps()` 애니메이션 코드를 생성합니다. **(결과창에서 즉시 미리보기 가능)**
 
 ### 6.3 보안 요구사항 (Security Requirements)
 `ffmpeg.wasm`은 고성능 처리를 위해 `SharedArrayBuffer`를 사용합니다. 브라우저 보안 정책상 이를 사용하려면 다음 HTTP 헤더가 필수입니다.
