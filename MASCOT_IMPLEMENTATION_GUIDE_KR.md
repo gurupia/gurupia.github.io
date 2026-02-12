@@ -57,9 +57,16 @@ AI 로직은 `updatePosition()` 내에서 실행되며 `aiType`에 따라 기본
 
 ---
 
-## 3. 데이터 영속성 (`localStorage`)
+## 3. 데이터 영속성 (`IndexedDB`)
 
-설정은 `mascots-data` 키에 변경 사항이 있을 때마다 자동으로 저장됩니다.
+설정은 **IndexedDB**를 사용하여 자동으로 저장됩니다. 이전 버전의 localStorage보다 더 큰 용량과 성능을 제공합니다.
+
+> **참고**: 이전 버전은 5-10MB 제한이 있는 localStorage를 사용했습니다. 현재 시스템은 IndexedDB를 사용하며, localStorage의 기존 데이터는 자동으로 마이그레이션됩니다.
+
+**스토리지 매니저** (`MascotDB`):
+- `MascotDB.save(data)`: IndexedDB에 비동기 저장
+- `MascotDB.load()`: IndexedDB에서 비동기 로드
+- `MascotDB.migrateFromLocalStorage()`: 기존 localStorage 데이터 자동 마이그레이션
 
 **스키마 구조**:
 ```json
@@ -109,8 +116,36 @@ const fxSettings = {             // 전역 토글
 1. **발사체 업데이트**: 탄환 이동, 충돌 확인, 소멸된 탄환 제거.
 2. **파티클 업데이트**: 물리 적용, 페이드 아웃, 소멸된 파티클 제거.
 3. **마스코트 업데이트**: 속도 적용, AI 로직 실행, 벽 충돌 처리.
-4. **충돌 체크**: 물리 상호작용을 위한 모든 마스코트 간의 O(N^2) 검사.
+4. **충돌 체크**: 공간 분할을 통한 효율적인 O(N) 충돌 감지.
 5. **루프**: 다음 프레임 요청.
+
+### 5.1 성능 최적화
+
+#### **공간 분할 (Spatial Partitioning)** - `SpatialGrid`
+기존의 O(N²) 브루트 포스 충돌 검사 대신, 그리드 기반 공간 분할을 사용합니다:
+- 화면을 150px 셀로 분할
+- 마스코트는 같은 셀/인접 셀의 엔티티와만 충돌 검사
+- 100개 마스코트 기준 충돌 검사 횟수: ~5000회 → ~50회로 감소
+
+```javascript
+const SpatialGrid = {
+    cellSize: 150,
+    getCellKey(x, y) { /* "cellX,cellY" 반환 */ },
+    insert(mascot) { /* 그리드에 추가 */ },
+    getNearby(mascot) { /* 3x3 셀 영역의 마스코트 반환 */ }
+};
+```
+
+#### **페이지 가시성 API (Page Visibility API)**
+브라우저 탭이 숨겨지면 애니메이션이 자동으로 일시 중지됩니다:
+- 탭 전환 시 CPU/배터리 절약
+- Matrix Rain과 마스코트 업데이트 모두 가시성 상태를 따름
+- 탭이 다시 활성화되면 즉시 재개
+
+```javascript
+document.addEventListener('visibilitychange', () => {
+    isPageVisible = !document.hidden;
+});
 
 ---
 
@@ -152,5 +187,5 @@ python server.py
 
 `/background-remover` 경로에 위치한 실험적 기능입니다. `@imgly/background-removal` 라이브러리를 사용하여 클라이언트 측에서 배경 제거를 시도합니다.
 
-> **⚠️ Known Issue (미해결 문제)**: 현재 로컬 개발 서버 환경(`localhost`)에서는 WASM/ONNX 모델 파일 로딩 시 CORS 또는 경로 문제로 인해 "Conversion Failed" 오류가 발생하여 정상 작동하지 않습니다. 상용 배포 환경(HTTPS)이나 특정 설정을 갖춘 서버가 필요할 수 있습니다.
+> **✅ Resolved (해결됨)**: 이전에는 WASM/ONNX 모델 로딩 시 CORS 문제가 있었으나, `server.py`가 업데이트되어 조건부로 헤더를 전송합니다. 이제 로컬 서버(`python server.py`)를 통해 정상적으로 작동합니다.
 

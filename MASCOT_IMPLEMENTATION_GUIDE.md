@@ -57,9 +57,16 @@ The AI logic runs in `updatePosition()` and overrides standard movement based on
 
 ---
 
-## 3. Data Persistence (`localStorage`)
+## 3. Data Persistence (`IndexedDB`)
 
-Configuration is saved automatically on any change to `mascots-data`.
+Configuration is saved automatically using **IndexedDB** for better storage capacity and performance.
+
+> **Note**: Previous versions used `localStorage` which had a 5-10MB limit. The system now uses IndexedDB with automatic migration from localStorage.
+
+**Storage Manager** (`MascotDB`):
+- `MascotDB.save(data)`: Async save to IndexedDB
+- `MascotDB.load()`: Async load from IndexedDB
+- `MascotDB.migrateFromLocalStorage()`: Auto-migrates old localStorage data
 
 **Schema Structure**:
 ```json
@@ -109,8 +116,36 @@ The `globalUpdate()` function drives the entire system using `requestAnimationFr
 1. **Projectile Update**: Move bullets, check collisions, remove dead bullets.
 2. **Particle Update**: Apply physics, fade out, remove dead particles.
 3. **Mascot Update**: Apply velocity, execute AI logic, handle wall collisions.
-4. **Collision Check**: O(N^2) check between all mascots for physics interaction.
+4. **Collision Check**: Spatial partitioning for efficient O(N) collision detection.
 5. **Loop**: Request next frame.
+
+### 5.1 Performance Optimizations
+
+#### **Spatial Partitioning** (`SpatialGrid`)
+Instead of O(N²) brute-force collision checks, the system uses grid-based spatial partitioning:
+- Screen divided into 150px cells
+- Mascots only check collisions with entities in same/adjacent cells
+- Reduces collision checks from ~5000 to ~50 for 100 mascots
+
+```javascript
+const SpatialGrid = {
+    cellSize: 150,
+    getCellKey(x, y) { /* returns "cellX,cellY" */ },
+    insert(mascot) { /* adds to grid */ },
+    getNearby(mascot) { /* returns mascots in 3x3 cell area */ }
+};
+```
+
+#### **Page Visibility API**
+Animations automatically pause when the browser tab is hidden:
+- Saves CPU/battery when user switches tabs
+- Matrix Rain and mascot updates both respect visibility state
+- Resumes instantly when tab becomes visible again
+
+```javascript
+document.addEventListener('visibilitychange', () => {
+    isPageVisible = !document.hidden;
+});
 
 ---
 

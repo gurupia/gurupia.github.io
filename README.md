@@ -10,6 +10,7 @@ Interact with "living" desktop mascots that react to your presence.
 - **Visual FX**: Explosions trigger **Screen Shake** and **Dynamic Particles** (sparks, smoke).
 - **Spatial Audio**: Real-time synthesized sound with stereo panning based on mascot position.
 - **Customization**: Upload your own characters and toggle effects via the 'Settings' menu.
+- **Performance**: Spatial partitioning for efficient collision detection, auto-pause when tab is hidden.
 
 ### 💻 Terminal Interface
 - Fully responsive terminal UI with theming support (Cyberpunk, Matrix, Retro, etc.).
