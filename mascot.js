@@ -1,20 +1,56 @@
-// Mascot Character System
+/**
+ * Mascot Character System
+ * 마스코트 캐릭터 시스템
+ *
+ * Interactive desktop mascot engine with behavioral AI, weapon systems,
+ * particle effects, spatial audio, and IndexedDB persistence.
+ * 행동 AI, 무기 시스템, 파티클 효과, 공간 오디오, IndexedDB 영속성을 갖춘
+ * 인터랙티브 데스크톱 마스코트 엔진.
+ *
+ * @module MascotSystem
+ */
+
+/** @type {boolean} Flag to prevent auto-saving during bulk load / 대량 로드 시 자동 저장 방지 플래그 */
 let isLoadingMascots = false;
+/** @type {boolean} Flag to prevent slider value flickering during adjustment / 슬라이더 조정 중 값 깜박임 방지 */
 let isAdjustingSlider = false;
+/** @type {Mascot[]} Active mascot instances / 활성 마스코트 인스턴스 배열 */
 let mascots = [];
+/** @type {Projectile[]} Active projectile instances / 활성 투사체 인스턴스 배열 */
 let projectiles = [];
+/** @type {string|null} Currently selected mascot ID for settings UI / 설정 UI에서 선택된 마스코트 ID */
 let selectedMascotId = null;
+/** @constant {number} Maximum simultaneous projectiles to prevent DOM lag / DOM 지연 방지 최대 투사체 수 */
 const MAX_PROJECTILES = 100;
+/** @constant {number} Maximum simultaneous particles / 최대 파티클 수 */
 const MAX_PARTICLES = 50;
+/** @type {{enabled: boolean, strength: number}} Collision physics settings (strength: 0-1 bounciness) / 충돌 물리 설정 */
 const collisionSettings = { enabled: true, strength: 0.8 };
 
-// --- IndexedDB Storage Manager ---
+/**
+ * IndexedDB Storage Manager for mascot persistence.
+ * 마스코트 영속성을 위한 IndexedDB 스토리지 매니저.
+ *
+ * Provides async save/load with automatic localStorage migration.
+ * 비동기 저장/로드 및 localStorage 자동 마이그레이션 제공.
+ *
+ * @namespace MascotDB
+ */
 const MascotDB = {
+    /** @type {string} Database name / 데이터베이스 이름 */
     dbName: 'MascotStorage',
+    /** @type {number} Schema version / 스키마 버전 */
     dbVersion: 1,
+    /** @type {string} Object store name / 오브젝트 스토어 이름 */
     storeName: 'mascots',
+    /** @type {IDBDatabase|null} Cached database connection / 캐시된 DB 연결 */
     db: null,
 
+    /**
+     * Initialize IndexedDB connection. Creates object store on first run.
+     * IndexedDB 연결 초기화. 첫 실행 시 오브젝트 스토어 생성.
+     * @returns {Promise<IDBDatabase>}
+     */
     async init() {
         if (this.db) return this.db;
         return new Promise((resolve, reject) => {
@@ -33,6 +69,12 @@ const MascotDB = {
         });
     },
 
+    /**
+     * Save mascot data to IndexedDB. Falls back to localStorage (without images) on error.
+     * 마스코트 데이터를 IndexedDB에 저장. 오류 시 localStorage로 폴백 (이미지 제외).
+     * @param {Object[]} mascotsData - Array of serialized mascot objects
+     * @returns {Promise<boolean>} true if IndexedDB save succeeded
+     */
     async save(mascotsData) {
         try {
             await this.init();
@@ -60,6 +102,11 @@ const MascotDB = {
         }
     },
 
+    /**
+     * Load all mascot data from IndexedDB.
+     * IndexedDB에서 모든 마스코트 데이터 로드.
+     * @returns {Promise<Object[]|null>} Array of mascot objects, or null on error
+     */
     async load() {
         try {
             await this.init();
@@ -76,6 +123,11 @@ const MascotDB = {
         }
     },
 
+    /**
+     * Migrate mascot data from localStorage to IndexedDB (one-time).
+     * localStorage에서 IndexedDB로 마스코트 데이터 마이그레이션 (1회).
+     * @returns {Promise<Object[]|null>} Migrated data, or null if no old data exists
+     */
     async migrateFromLocalStorage() {
         const oldData = localStorage.getItem('mascots-data');
         if (oldData) {
@@ -95,27 +147,54 @@ const MascotDB = {
     }
 };
 
-// Global FX & Audio Settings
+/**
+ * Global visual/audio effects toggle settings.
+ * 전역 시각/오디오 효과 토글 설정.
+ * @type {{screenShake: boolean, particles: boolean, sound: boolean}}
+ */
 const fxSettings = {
     screenShake: true,
     particles: true,
     sound: true
 };
 
-// --- SOUND MANAGER (Web Audio CSS-Spatial) ---
+/**
+ * Spatial audio engine using Web Audio API.
+ * Web Audio API를 사용한 공간 오디오 엔진.
+ *
+ * Synthesizes sounds in real-time (no external audio files needed) with
+ * stereo panning based on horizontal screen position.
+ * 실시간 사운드 합성 (외부 오디오 파일 불필요) 및 수평 화면 위치 기반 스테레오 패닝.
+ *
+ * @class SoundManager
+ */
 class SoundManager {
     constructor() {
+        /** @type {AudioContext|null} Web Audio API context / Web Audio API 컨텍스트 */
         this.ctx = null;
+        /** @type {Map} Panner node pool / 패너 노드 풀 */
         this.pannerPool = new Map();
+        /** @type {boolean} Master enable/disable / 마스터 활성화/비활성화 */
         this.enabled = true;
     }
 
+    /**
+     * Lazy-initialize AudioContext (requires user interaction in most browsers).
+     * AudioContext 지연 초기화 (대부분의 브라우저에서 사용자 인터랙션 필요).
+     */
     init() {
         if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         }
     }
 
+    /**
+     * Play a synthesized sound at a given screen position with stereo panning.
+     * 주어진 화면 위치에서 스테레오 패닝과 함께 합성 사운드 재생.
+     *
+     * @param {'bullet'|'flame'|'explosion'} type - Sound type / 사운드 유형
+     * @param {number} x - Horizontal screen position (0 = left, innerWidth = right)
+     */
     async playSpatialSound(type, x) {
         if (!this.enabled || !fxSettings.sound) return;
         this.init();
@@ -162,10 +241,27 @@ class SoundManager {
     }
 }
 
+/** @type {SoundManager} Global sound manager instance / 전역 사운드 매니저 인스턴스 */
 const soundManager = new SoundManager();
 
-// --- PARTICLE SYSTEM ---
+/**
+ * DOM-based visual effect particle.
+ * DOM 기반 시각 효과 파티클.
+ *
+ * Uses div elements instead of Canvas to avoid context switching overhead.
+ * Canvas 컨텍스트 전환 오버헤드를 피하기 위해 div 요소 사용.
+ *
+ * @class Particle
+ */
 class Particle {
+    /**
+     * @param {number} x - Initial X position / 초기 X 위치
+     * @param {number} y - Initial Y position / 초기 Y 위치
+     * @param {number} vx - X velocity / X 속도
+     * @param {number} vy - Y velocity / Y 속도
+     * @param {*} color - Unused (CSS class handles color) / 미사용 (CSS 클래스로 색상 처리)
+     * @param {'spark'|'smoke'} type - Particle visual type / 파티클 시각 유형
+     */
     constructor(x, y, vx, vy, color, type = 'spark') {
         this.x = x;
         this.y = y;
@@ -183,6 +279,7 @@ class Particle {
         document.body.appendChild(this.element);
     }
 
+    /** Apply physics (gravity, decay) and update DOM position. Destroys when life <= 0. */
     update() {
         this.x += this.vx;
         this.y += this.vy;
@@ -194,6 +291,7 @@ class Particle {
         if (this.life <= 0) this.destroy();
     }
 
+    /** Remove particle from DOM and global array. / DOM 및 전역 배열에서 파티클 제거. */
     destroy() {
         this.element.remove();
         const idx = particles.indexOf(this);
@@ -201,8 +299,15 @@ class Particle {
     }
 }
 
+/** @type {Particle[]} Active particles / 활성 파티클 배열 */
 let particles = [];
 
+/**
+ * Create explosion visual effect: 15 spark particles + screen shake.
+ * 폭발 시각 효과 생성: 15개 스파크 파티클 + 화면 흔들림.
+ * @param {number} x - Explosion center X / 폭발 중심 X
+ * @param {number} y - Explosion center Y / 폭발 중심 Y
+ */
 function createExplosionFX(x, y) {
     if (!fxSettings.particles) return;
     for (let i = 0; i < 15; i++) {
@@ -218,7 +323,21 @@ function createExplosionFX(x, y) {
     }
 }
 
+/**
+ * Weapon projectile with trajectory, hit detection, and lifetime management.
+ * 궤적, 타격 감지, 수명 관리를 갖춘 무기 투사체.
+ *
+ * @class Projectile
+ */
 class Projectile {
+    /**
+     * @param {number} x - Start X / 시작 X
+     * @param {number} y - Start Y / 시작 Y
+     * @param {number} vx - X velocity / X 속도
+     * @param {number} vy - Y velocity / Y 속도
+     * @param {'bullet'|'flame'|'grenade'|'missile'} type - Projectile type / 투사체 유형
+     * @param {Mascot|null} targetMascot - Homing target for missiles / 미사일 유도 대상
+     */
     constructor(x, y, vx, vy, type, targetMascot = null) {
         this.x = x;
         this.y = y;
@@ -237,6 +356,7 @@ class Projectile {
         this.alive = true;
     }
 
+    /** Move projectile, handle missile homing, check hit detection against all mascots. */
     update() {
         if (!this.alive) return;
 
@@ -289,6 +409,7 @@ class Projectile {
         }
     }
 
+    /** Grenade explosion: 100px blast radius, push nearby mascots, FX + sound. / 수류탄 폭발: 100px 반경, 근처 마스코트 밀기, FX + 사운드. */
     explode() {
         const explosion = document.createElement('div');
         explosion.className = 'explosion-effect';
@@ -323,7 +444,34 @@ class Projectile {
     }
 }
 
+/**
+ * Interactive desktop mascot entity with behavioral AI, weapons, and persistence.
+ * 행동 AI, 무기, 영속성을 갖춘 인터랙티브 데스크톱 마스코트 엔티티.
+ *
+ * Each mascot is an independent instance with its own state, AI personality,
+ * weapon loadout, and visual configuration stored in IndexedDB.
+ * 각 마스코트는 고유한 상태, AI 성격, 무기 장비, IndexedDB에 저장되는 시각 설정을 가진 독립 인스턴스.
+ *
+ * @class Mascot
+ */
 class Mascot {
+    /**
+     * @param {string} id - Unique mascot identifier / 고유 마스코트 식별자
+     * @param {Object} config - Initial configuration / 초기 설정
+     * @param {number} [config.x] - Initial X position (default: random) / 초기 X 위치
+     * @param {number} [config.y] - Initial Y position (default: random) / 초기 Y 위치
+     * @param {number} [config.vx] - Initial X velocity / 초기 X 속도
+     * @param {number} [config.vy] - Initial Y velocity / 초기 Y 속도
+     * @param {number} [config.size=64] - Pixel size / 픽셀 크기
+     * @param {boolean} [config.isCustom=false] - Custom uploaded image flag / 커스텀 이미지 플래그
+     * @param {string} [config.image='mascot.png'] - Image source (URL or data URI) / 이미지 소스
+     * @param {boolean} [config.disabled=false] - Hidden state / 숨김 상태
+     * @param {boolean} [config.noFloat=false] - Disable float animation / 부유 애니메이션 비활성화
+     * @param {boolean} [config.effect3d=false] - Enable 3D tilt on hover / 호버 시 3D 틸트 활성화
+     * @param {boolean} [config.actionMode=false] - Enable weapon firing / 무기 발사 활성화
+     * @param {'machinegun'|'shotgun'|'flamethrower'|'grenade'|'missile'} [config.weaponType='machinegun'] - Weapon type / 무기 유형
+     * @param {'neutral'|'curious'|'shy'|'aggressive'} [config.aiType='neutral'] - AI personality / AI 성격
+     */
     constructor(id, config = {}) {
         this.id = id;
         this.element = null;
@@ -365,6 +513,7 @@ class Mascot {
         this.init();
     }
 
+    /** Create DOM element, set image, bind event listeners. / DOM 요소 생성, 이미지 설정, 이벤트 리스너 바인딩. */
     init() {
         this.element = document.createElement('div');
         this.element.className = 'mascot';
@@ -389,6 +538,7 @@ class Mascot {
         window.addEventListener('resize', this.resizeHandler);
     }
 
+    /** Remove DOM element, clear intervals, remove event listeners. / DOM 요소 제거, 인터벌 해제, 이벤트 리스너 제거. */
     destroy() {
         if (this.element) this.element.remove();
         if (this.shootInterval) clearInterval(this.shootInterval);
@@ -396,6 +546,11 @@ class Mascot {
         this.element = null;
     }
 
+    /**
+     * Handle click: flee from click direction, show speech bubble, easter egg after 20+ clicks.
+     * 클릭 처리: 클릭 반대 방향으로 도주, 말풍선 표시, 20회 이상 시 이스터에그.
+     * @param {MouseEvent} e
+     */
     onClick(e) {
         e.stopPropagation();
         if (this.isActionModeEnabled) {
@@ -436,12 +591,14 @@ class Mascot {
         }, 2000);
     }
 
+    /** Toggle display based on isDisabled state. / isDisabled 상태에 따라 표시 토글. */
     updateVisibility() {
         if (!this.element) return;
         this.element.style.display = this.isDisabled ? 'none' : 'block';
         this.update3DEffects();
     }
 
+    /** Toggle 3D tilt CSS class based on is3DEffectEnabled. / is3DEffectEnabled에 따라 3D 틸트 CSS 클래스 토글. */
     update3DEffects() {
         if (!this.element) return;
         if (this.is3DEffectEnabled && !this.isDisabled) {
@@ -453,6 +610,7 @@ class Mascot {
         }
     }
 
+    /** Calculate 3D tilt angles from cursor position for perspective effect. / 원근 효과를 위한 커서 위치 기반 3D 틸트 각도 계산. */
     onMouseMove(e) {
         if (!this.is3DEffectEnabled || this.isDisabled || !this.element) return;
         const rect = this.element.getBoundingClientRect();
@@ -484,6 +642,7 @@ class Mascot {
         }
     }
 
+    /** Begin auto-fire interval based on weapon type fire rate. / 무기 유형 발사 속도에 따른 자동 발사 인터벌 시작. */
     startShooting(e) {
         if (this.shootInterval) return;
         this.fireWeapon();
@@ -491,6 +650,7 @@ class Mascot {
         if (rate > 0) this.shootInterval = setInterval(() => this.fireWeapon(), rate);
     }
 
+    /** Clear auto-fire interval. / 자동 발사 인터벌 해제. */
     stopShooting() {
         if (this.shootInterval) {
             clearInterval(this.shootInterval);
@@ -498,6 +658,11 @@ class Mascot {
         }
     }
 
+    /**
+     * Toggle action/weapon mode. Updates weapon selection UI visibility.
+     * 액션/무기 모드 토글. 무기 선택 UI 가시성 업데이트.
+     * @param {boolean} enabled
+     */
     setActionMode(enabled) {
         this.isActionModeEnabled = enabled;
         this.stopShooting();
@@ -510,6 +675,11 @@ class Mascot {
         this.updateVisibility();
     }
 
+    /**
+     * Change weapon type. Restarts shooting if currently active.
+     * 무기 유형 변경. 현재 발사 중이면 재시작.
+     * @param {'machinegun'|'shotgun'|'flamethrower'|'grenade'|'missile'} type
+     */
     setWeaponType(type) {
         const wasShooting = !!this.shootInterval;
         if (wasShooting) this.stopShooting();
@@ -517,10 +687,16 @@ class Mascot {
         if (wasShooting) this.startShooting();
     }
 
+    /**
+     * Set AI behavior personality.
+     * AI 행동 성격 설정.
+     * @param {'neutral'|'curious'|'shy'|'aggressive'} type
+     */
     setAIType(type) {
         this.aiType = type;
     }
 
+    /** Dispatch to specific fire method based on current weaponType. / 현재 weaponType에 따라 해당 발사 메서드 호출. */
     fireWeapon() {
         if (!this.element || !this.isActionModeEnabled || this.isDisabled) {
             this.stopShooting();
@@ -538,6 +714,13 @@ class Mascot {
         }
     }
 
+    /**
+     * Fire a single bullet with optional angle offset (used by shotgun spread).
+     * 선택적 각도 오프셋으로 단발 총알 발사 (산탄총 확산에 사용).
+     * @param {number} x - Origin X / 발사 원점 X
+     * @param {number} y - Origin Y / 발사 원점 Y
+     * @param {number} [angleOffset=0] - Radians offset from vertical / 수직 기준 라디안 오프셋
+     */
     fireBullet(x, y, angleOffset = 0) {
         const angle = (Math.random() - 0.5) * 0.1 + angleOffset;
         const vx = Math.cos(angle - Math.PI / 2) * 15;
@@ -549,6 +732,7 @@ class Mascot {
         }
     }
 
+    /** Fire a flame projectile (short range, 30 frame lifetime). / 화염 투사체 발사 (근거리, 30프레임 수명). */
     fireFlame(x, y) {
         const angle = (Math.random() - 0.5) * 0.5 - Math.PI / 2;
         const speed = 5 + Math.random() * 5;
@@ -556,17 +740,26 @@ class Mascot {
         soundManager.playSpatialSound('flame', x);
     }
 
+    /** Fire a grenade (explodes on contact, 100px blast radius). / 수류탄 발사 (접촉 폭발, 100px 반경). */
     fireGrenade(x, y) {
         const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.2;
         projectiles.push(new Projectile(x, y, Math.cos(angle) * 8, Math.sin(angle) * 8, 'grenade'));
     }
 
+    /** Fire a homing missile targeting a random other mascot. / 무작위 다른 마스코트를 추적하는 유도 미사일 발사. */
     fireMissile(x, y) {
         const others = mascots.filter(m => m !== this && !m.isDisabled);
         const target = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
         projectiles.push(new Projectile(x, y, 0, -5, 'missile', target));
     }
 
+    /**
+     * Add a visual impact mark to the mascot element.
+     * 마스코트 요소에 시각적 타격 자국 추가.
+     * @param {'hole'|'scorch'} type - Impact visual type / 타격 시각 유형
+     * @param {number} x - X offset within mascot / 마스코트 내 X 오프셋
+     * @param {number} y - Y offset within mascot / 마스코트 내 Y 오프셋
+     */
     createImpact(type, x, y) {
         if (!this.element) return;
         const mark = document.createElement('div');
@@ -577,6 +770,11 @@ class Mascot {
         setTimeout(() => { if (mark.parentElement) mark.remove(); }, 3000);
     }
 
+    /**
+     * Display a speech bubble above the mascot for 3 seconds with fade-out.
+     * 마스코트 위에 3초간 말풍선 표시 (페이드아웃).
+     * @param {string} message - Text to display / 표시할 텍스트
+     */
     showSpeechBubble(message) {
         if (!this.element) return;
         const existing = this.element.querySelector('.speech-bubble');
@@ -596,6 +794,12 @@ class Mascot {
         }, 3000);
     }
 
+    /**
+     * Change mascot image. Updates DOM and triggers auto-save.
+     * 마스코트 이미지 변경. DOM 업데이트 및 자동 저장 트리거.
+     * @param {string} src - Image URL or data URI / 이미지 URL 또는 data URI
+     * @param {boolean} isCustom - Whether this is a user-uploaded image / 사용자 업로드 이미지 여부
+     */
     updateImage(src, isCustom) {
         if (!this.element) return;
         this.isCustom = isCustom;
@@ -624,6 +828,11 @@ class Mascot {
         if (!isLoadingMascots) saveMascotsToStorage();
     }
 
+    /**
+     * Update mascot pixel size.
+     * 마스코트 픽셀 크기 업데이트.
+     * @param {number} size - New size in pixels / 새 크기 (픽셀)
+     */
     setSize(size) {
         this.size = parseInt(size);
         if (this.element) {
@@ -632,6 +841,10 @@ class Mascot {
         }
     }
 
+    /**
+     * Main per-frame update: execute AI logic, apply velocity, handle boundary collisions, flip direction.
+     * 메인 프레임별 업데이트: AI 로직 실행, 속도 적용, 경계 충돌 처리, 방향 전환.
+     */
     updatePosition() {
         if (!this.element) return;
 
@@ -684,18 +897,26 @@ class Mascot {
         this.element.style.top = this.y + 'px';
     }
 
+    /** @returns {{x: number, y: number}} Center coordinates of the mascot / 마스코트 중심 좌표 */
     getCenter() {
         const w = (this.element ? this.element.offsetWidth : this.size) || this.size;
         const h = (this.element ? this.element.offsetHeight : this.size) || this.size;
         return { x: this.x + w / 2, y: this.y + h / 2 };
     }
 
+    /** @returns {number} Collision radius (average of width and height / 4) / 충돌 반경 */
     getRadius() {
         const w = (this.element ? this.element.offsetWidth : this.size) || this.size;
         const h = (this.element ? this.element.offsetHeight : this.size) || this.size;
         return (w + h) / 4;
     }
 
+    /**
+     * Circle-based collision detection with another mascot.
+     * 다른 마스코트와의 원형 기반 충돌 감지.
+     * @param {Mascot} other - Other mascot to check / 검사 대상 마스코트
+     * @returns {boolean} true if colliding / 충돌 시 true
+     */
     checkCollisionWith(other) {
         if (!other || other.id === this.id || this.isDisabled || other.isDisabled) return false;
         const c1 = this.getCenter(), c2 = other.getCenter();
@@ -703,6 +924,11 @@ class Mascot {
         return dist < (this.getRadius() + other.getRadius());
     }
 
+    /**
+     * Elastic collision response with mass proportional to size.
+     * 크기에 비례하는 질량의 탄성 충돌 응답.
+     * @param {Mascot} other - Colliding mascot / 충돌 마스코트
+     */
     handleCollision(other) {
         if (!collisionSettings.enabled) return;
         const c1 = this.getCenter(), c2 = other.getCenter();
@@ -752,7 +978,10 @@ class Mascot {
     }
 }
 
-// GLOBAL UI CORE
+/**
+ * Initialize the settings modal UI: tabs, controls, event bindings, mascot list.
+ * 설정 모달 UI 초기화: 탭, 컨트롤, 이벤트 바인딩, 마스코트 목록.
+ */
 function setupGlobalMascotUI() {
     const modal = document.getElementById('mascot-modal');
     const btn = document.getElementById('mascot-settings-btn');
@@ -930,10 +1159,21 @@ function setupGlobalMascotUI() {
     updateSettingsUI();
 }
 
+/** Generate unique mascot ID: "mascot_" + timestamp + random. / 고유 마스코트 ID 생성. @returns {string} */
 function generateMascotId() { return 'mascot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); }
+/** Find mascot by ID. / ID로 마스코트 검색. @param {string} id @returns {Mascot|undefined} */
 function getMascotById(id) { return mascots.find(m => m.id === id); }
 
-// --- Spatial Partitioning for O(N) Collision Detection ---
+/**
+ * Grid-based spatial partitioning for O(N) collision detection.
+ * O(N) 충돌 감지를 위한 그리드 기반 공간 분할.
+ *
+ * Divides screen into 150px cells. Only checks collisions between
+ * mascots in the same or adjacent cells (3x3 neighborhood).
+ * 화면을 150px 셀로 분할. 같은 셀 또는 인접 셀(3x3 이웃)의 마스코트 간 충돌만 검사.
+ *
+ * @namespace SpatialGrid
+ */
 const SpatialGrid = {
     cellSize: 150, // Cell size in pixels (should be >= max mascot size)
     grid: new Map(),
@@ -975,6 +1215,10 @@ const SpatialGrid = {
     }
 };
 
+/**
+ * Run spatial grid collision detection for all active mascots.
+ * 모든 활성 마스코트에 대한 공간 그리드 충돌 감지 실행.
+ */
 function checkAllCollisions() {
     if (!collisionSettings.enabled || mascots.length < 2) return;
 
@@ -1007,6 +1251,13 @@ function checkAllCollisions() {
     }
 }
 
+/**
+ * Create, register, and optionally persist a new mascot.
+ * 새 마스코트 생성, 등록, 선택적 영속화.
+ * @param {Object} config - Mascot configuration (see Mascot constructor) / 마스코트 설정
+ * @param {boolean} [skipSave=false] - Skip auto-save (used during bulk load) / 자동 저장 건너뛰기
+ * @returns {Mascot} The created mascot instance / 생성된 마스코트 인스턴스
+ */
 function addMascot(config = {}, skipSave = false) {
     const m = new Mascot(config.id || generateMascotId(), config);
     mascots.push(m);
@@ -1014,6 +1265,12 @@ function addMascot(config = {}, skipSave = false) {
     return m;
 }
 
+/**
+ * Destroy and remove a mascot by ID.
+ * ID로 마스코트 파괴 및 제거.
+ * @param {string} id - Mascot ID to remove / 제거할 마스코트 ID
+ * @returns {boolean} true if found and removed / 찾아서 제거했으면 true
+ */
 function removeMascot(id) {
     const idx = mascots.findIndex(m => m.id === id);
     if (idx !== -1) {
@@ -1026,6 +1283,7 @@ function removeMascot(id) {
     return false;
 }
 
+/** Serialize all mascots and save to IndexedDB asynchronously. / 모든 마스코트를 직렬화하여 IndexedDB에 비동기 저장. */
 function saveMascotsToStorage() {
     const data = mascots.map(m => ({
         id: m.id, image: m.currentImage, isCustom: m.isCustom, size: m.size,
@@ -1038,6 +1296,13 @@ function saveMascotsToStorage() {
     MascotDB.save(data).catch(e => console.error('Failed to save mascots:', e));
 }
 
+/**
+ * Load mascots from IndexedDB (with localStorage migration fallback).
+ * Clears existing mascots and creates fresh instances.
+ * IndexedDB에서 마스코트 로드 (localStorage 마이그레이션 폴백 포함).
+ * 기존 마스코트를 제거하고 새 인스턴스 생성.
+ * @returns {Promise<void>}
+ */
 async function loadMascotsFromStorage() {
     isLoadingMascots = true;
     // Clear existing
@@ -1067,9 +1332,17 @@ async function loadMascotsFromStorage() {
     isLoadingMascots = false;
 }
 
+/** @type {boolean} Page visibility state (false when tab is hidden) / 페이지 가시성 상태 */
 let isPageVisible = true;
+/** @type {number|null} Current animation frame request ID / 현재 애니메이션 프레임 요청 ID */
 let animationFrameId = null;
 
+/**
+ * Main animation frame loop: update projectiles → particles → mascots → collisions.
+ * Skips updates when page is hidden (saves CPU/battery).
+ * 메인 애니메이션 프레임 루프: 투사체 → 파티클 → 마스코트 → 충돌 업데이트.
+ * 페이지가 숨겨지면 업데이트 건너뜀 (CPU/배터리 절약).
+ */
 function globalUpdate() {
     // Skip updates when page is not visible (saves CPU/battery)
     if (!isPageVisible) {
@@ -1107,13 +1380,20 @@ document.addEventListener('visibilitychange', () => {
     window.dispatchEvent(new CustomEvent('pageVisibilityChange', { detail: { visible: isPageVisible } }));
 });
 
-let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+/** @type {number} Current mouse X position (used by AI behaviors) / 현재 마우스 X 위치 (AI 행동에 사용) */
+let mouseX = window.innerWidth / 2;
+/** @type {number} Current mouse Y position / 현재 마우스 Y 위치 */
+let mouseY = window.innerHeight / 2;
 window.addEventListener('mousemove', (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
 });
 
-// BOOTSTRAP
+/**
+ * Bootstrap the mascot system: load persisted data, setup UI, start animation loop.
+ * 마스코트 시스템 부트스트랩: 저장된 데이터 로드, UI 설정, 애니메이션 루프 시작.
+ * @returns {Promise<void>}
+ */
 async function initMascotSystem() {
     await loadMascotsFromStorage();
     setupGlobalMascotUI();

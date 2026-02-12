@@ -1,14 +1,25 @@
+/**
+ * Floating, draggable YouTube embed player with URL parsing.
+ * URL 파싱 기능을 갖춘 플로팅 드래그 가능 YouTube 임베드 플레이어.
+ *
+ * Supports video URLs, shorts, embeds, playlists with ReDoS-safe parsing.
+ * 비디오 URL, Shorts, 임베드, 재생목록을 ReDoS 안전 파싱으로 지원.
+ *
+ * @class YouTubePlayer
+ */
 class YouTubePlayer {
     constructor() {
         this.init();
     }
 
+    /** Initialize: cache DOM, bind events, make player draggable. / 초기화: DOM 캐시, 이벤트 바인딩, 드래그 설정. */
     init() {
         this.cacheDOM();
         this.bindEvents();
         this.makeDraggable(this.player, this.header);
     }
 
+    /** Cache all DOM element references. / 모든 DOM 요소 참조 캐시. */
     cacheDOM() {
         this.playerBtn = document.getElementById('youtube-player-btn');
         this.player = document.getElementById('youtube-player');
@@ -20,6 +31,11 @@ class YouTubePlayer {
         this.errorMsg = null; // Will be created on demand
     }
 
+    /**
+     * Display error message below URL input (auto-hides after 5 seconds).
+     * URL 입력 아래에 에러 메시지 표시 (5초 후 자동 숨김).
+     * @param {string} message - Error text to display / 표시할 에러 텍스트
+     */
     showError(message) {
         // Create error message element if not exists
         if (!this.errorMsg) {
@@ -35,10 +51,12 @@ class YouTubePlayer {
         }, 5000);
     }
 
+    /** Hide error message element. / 에러 메시지 요소 숨김. */
     clearError() {
         if (this.errorMsg) this.errorMsg.style.display = 'none';
     }
 
+    /** Bind click and keypress event listeners to player controls. / 플레이어 컨트롤에 클릭 및 키프레스 이벤트 리스너 바인딩. */
     bindEvents() {
         if (this.playerBtn) {
             this.playerBtn.addEventListener('click', () => this.togglePlayer());
@@ -56,12 +74,14 @@ class YouTubePlayer {
         }
     }
 
+    /** Toggle player panel visibility via .show CSS class. / .show CSS 클래스로 플레이어 패널 가시성 토글. */
     togglePlayer() {
         if (this.player) {
             this.player.classList.toggle('show');
         }
     }
 
+    /** Parse URL input and load video/playlist into iframe. / URL 입력을 파싱하여 iframe에 비디오/재생목록 로드. */
     loadVideo() {
         const url = this.urlInput.value.trim();
         if (!url) return;
@@ -78,6 +98,16 @@ class YouTubePlayer {
         }
     }
 
+    /**
+     * Extract video or playlist ID from YouTube URL (ReDoS-safe).
+     * YouTube URL에서 비디오 또는 재생목록 ID 추출 (ReDoS 안전).
+     *
+     * Supports: watch?v=, youtu.be/, embed/, shorts/, ?list=
+     * URL length capped at 500 chars. Video IDs validated as 11 chars [a-zA-Z0-9_-].
+     *
+     * @param {string} url - YouTube URL to parse / 파싱할 YouTube URL
+     * @returns {{type: 'video'|'playlist'|null, id: string|null}} Parsed result / 파싱 결과
+     */
     parseUrl(url) {
         // Validate URL length to prevent DoS (YouTube URLs are never this long)
         if (!url || url.length > 500) {
@@ -122,6 +152,12 @@ class YouTubePlayer {
         return { type: null, id: null };
     }
 
+    /**
+     * Make an element draggable by a handle element.
+     * 핸들 요소로 요소를 드래그 가능하게 설정.
+     * @param {HTMLElement} element - Element to move / 이동할 요소
+     * @param {HTMLElement} handle - Drag handle element / 드래그 핸들 요소
+     */
     makeDraggable(element, handle) {
         let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
 

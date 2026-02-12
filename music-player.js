@@ -1,19 +1,34 @@
+/**
+ * Playlist-based audio player loading tracks from Music/playlist.json.
+ * Music/playlist.json에서 트랙을 로드하는 플레이리스트 기반 오디오 플레이어.
+ *
+ * Features: Play/Pause, Previous/Next, Volume control, Folder scan, Auto-advance.
+ * 기능: 재생/일시정지, 이전/다음, 볼륨 컨트롤, 폴더 스캔, 자동 다음 곡.
+ *
+ * @class MusicPlayer
+ */
 class MusicPlayer {
     constructor() {
+        /** @type {Array<{title: string, artist: string, file: string}>} Loaded tracks / 로드된 트랙 목록 */
         this.playlist = [];
+        /** @type {number} Current track index / 현재 트랙 인덱스 */
         this.currentIndex = 0;
+        /** @type {boolean} Playback state / 재생 상태 */
         this.isPlaying = false;
+        /** @type {HTMLAudioElement} HTML5 Audio element / HTML5 오디오 요소 */
         this.audio = new Audio();
 
         this.init();
     }
 
+    /** Initialize: cache DOM, bind events, load playlist. / 초기화: DOM 캐시, 이벤트 바인딩, 플레이리스트 로드. */
     async init() {
         this.cacheDOM();
         this.bindEvents();
         await this.loadPlaylist();
     }
 
+    /** Cache all DOM element references for performance. / 성능을 위해 모든 DOM 요소 참조 캐시. */
     cacheDOM() {
         this.playerBtn = document.getElementById('music-player-btn');
         this.player = document.getElementById('music-player');
@@ -28,6 +43,7 @@ class MusicPlayer {
         this.trackArtist = document.getElementById('track-artist');
     }
 
+    /** Bind click/input event listeners to player controls. / 플레이어 컨트롤에 이벤트 리스너 바인딩. */
     bindEvents() {
         if (this.playerBtn) {
             this.playerBtn.addEventListener('click', () => this.togglePlayer());
@@ -59,6 +75,10 @@ class MusicPlayer {
         this.audio.addEventListener('ended', () => this.playNext());
     }
 
+    /**
+     * Fetch and parse Music/playlist.json. Falls back to single BGM track on CORS error.
+     * Music/playlist.json을 페치하여 파싱. CORS 오류 시 단일 BGM 트랙으로 폴백.
+     */
     async loadPlaylist() {
         try {
             const response = await fetch('Music/playlist.json');
@@ -89,6 +109,10 @@ class MusicPlayer {
         }
     }
 
+    /**
+     * Scan Music/ directory for MP3 files via directory listing (local HTTP server only).
+     * 디렉토리 리스팅을 통해 Music/ 폴더의 MP3 파일 스캔 (로컬 HTTP 서버 전용).
+     */
     async scanMusicFolder() {
         try {
             // Try to fetch directory listing (works on local python server)
@@ -129,6 +153,7 @@ class MusicPlayer {
         }
     }
 
+    /** Render playlist items in the DOM container. / DOM 컨테이너에 플레이리스트 항목 렌더링. */
     renderPlaylist() {
         if (!this.playlistContainer) return;
         this.playlistContainer.innerHTML = '';
@@ -145,6 +170,11 @@ class MusicPlayer {
         });
     }
 
+    /**
+     * Set audio source to track at given index and update UI.
+     * 주어진 인덱스의 트랙으로 오디오 소스 설정 및 UI 업데이트.
+     * @param {number} index - Track index in playlist / 플레이리스트 내 트랙 인덱스
+     */
     loadTrack(index) {
         if (index < 0 || index >= this.playlist.length) return;
 
@@ -159,6 +189,7 @@ class MusicPlayer {
         this.updatePlaylistUI();
     }
 
+    /** Toggle between play and pause state. / 재생과 일시정지 상태 토글. */
     togglePlay() {
         if (this.isPlaying) {
             this.pause();
@@ -167,6 +198,7 @@ class MusicPlayer {
         }
     }
 
+    /** Start playback. Also pauses any active BGM audio element. / 재생 시작. 활성 BGM 오디오도 일시정지. */
     play() {
         // Pause BGM if it's playing (from mascot.js)
         const bgmAudio = document.getElementById('bgm-audio');
@@ -185,24 +217,28 @@ class MusicPlayer {
             .catch(e => console.error("Playback failed:", e));
     }
 
+    /** Pause playback and update button icon. / 재생 일시정지 및 버튼 아이콘 업데이트. */
     pause() {
         this.audio.pause();
         this.isPlaying = false;
         if (this.playBtn) this.playBtn.textContent = '▶';
     }
 
+    /** Advance to next track (circular navigation). / 다음 트랙으로 이동 (순환 탐색). */
     playNext() {
         this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
         this.loadTrack(this.currentIndex);
         this.play();
     }
 
+    /** Go to previous track (circular navigation). / 이전 트랙으로 이동 (순환 탐색). */
     playPrev() {
         this.currentIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
         this.loadTrack(this.currentIndex);
         this.play();
     }
 
+    /** Update .active CSS class on playlist items to reflect current track. / 현재 트랙을 반영하여 .active CSS 클래스 업데이트. */
     updatePlaylistUI() {
         if (!this.playlistContainer) return;
         const items = this.playlistContainer.querySelectorAll('.playlist-item');
@@ -215,6 +251,7 @@ class MusicPlayer {
         });
     }
 
+    /** Toggle player panel visibility via .show CSS class. / .show CSS 클래스로 플레이어 패널 가시성 토글. */
     togglePlayer() {
         if (this.player) {
             this.player.classList.toggle('show');
@@ -222,7 +259,7 @@ class MusicPlayer {
     }
 }
 
-// Initialize player
+// Initialize player on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
     new MusicPlayer();
 });
