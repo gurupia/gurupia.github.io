@@ -17,6 +17,26 @@ class YouTubePlayer {
         this.loadBtn = document.getElementById('load-youtube');
         this.urlInput = document.getElementById('youtube-url');
         this.iframe = document.getElementById('youtube-iframe');
+        this.errorMsg = null; // Will be created on demand
+    }
+
+    showError(message) {
+        // Create error message element if not exists
+        if (!this.errorMsg) {
+            this.errorMsg = document.createElement('div');
+            this.errorMsg.style.cssText = 'color: #ff4444; font-size: 12px; margin-top: 5px; padding: 5px; background: rgba(255,0,0,0.1); border-radius: 3px; display: none;';
+            this.urlInput.parentNode.insertBefore(this.errorMsg, this.urlInput.nextSibling);
+        }
+        this.errorMsg.textContent = message;
+        this.errorMsg.style.display = 'block';
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            if (this.errorMsg) this.errorMsg.style.display = 'none';
+        }, 5000);
+    }
+
+    clearError() {
+        if (this.errorMsg) this.errorMsg.style.display = 'none';
     }
 
     bindEvents() {
@@ -46,6 +66,7 @@ class YouTubePlayer {
         const url = this.urlInput.value.trim();
         if (!url) return;
 
+        this.clearError();
         const result = this.parseUrl(url);
 
         if (result.type === 'video') {
@@ -53,25 +74,49 @@ class YouTubePlayer {
         } else if (result.type === 'playlist') {
             this.iframe.src = `https://www.youtube.com/embed/videoseries?list=${result.id}&autoplay=1`;
         } else {
-            alert('Invalid YouTube URL (Video or Playlist)');
+            this.showError('⚠️ Invalid YouTube URL. Please enter a valid video or playlist URL.');
         }
     }
 
     parseUrl(url) {
-        // Check for Playlist first
-        const playlistRegExp = /[?&]list=([^#\&\?]+)/;
-        const playlistMatch = url.match(playlistRegExp);
+        // Validate URL length to prevent DoS (YouTube URLs are never this long)
+        if (!url || url.length > 500) {
+            return { type: null, id: null };
+        }
 
+        // Check for Playlist first (simple pattern)
+        const playlistMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
         if (playlistMatch) {
             return { type: 'playlist', id: playlistMatch[1] };
         }
 
-        // Check for Video (Standard, Short, Embed)
-        const videoRegExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)\??v?=?|(&v=)|(shorts\/))([^#&?]*).*/;
-        const videoMatch = url.match(videoRegExp);
+        // Extract video ID using simple patterns (ReDoS-safe)
+        let videoId = null;
 
-        if (videoMatch && videoMatch[9].length == 11) {
-            return { type: 'video', id: videoMatch[9] };
+        // Pattern 1: youtu.be/VIDEO_ID
+        const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+        if (shortMatch) videoId = shortMatch[1];
+
+        // Pattern 2: youtube.com/watch?v=VIDEO_ID
+        if (!videoId) {
+            const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+            if (watchMatch) videoId = watchMatch[1];
+        }
+
+        // Pattern 3: youtube.com/embed/VIDEO_ID
+        if (!videoId) {
+            const embedMatch = url.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
+            if (embedMatch) videoId = embedMatch[1];
+        }
+
+        // Pattern 4: youtube.com/shorts/VIDEO_ID
+        if (!videoId) {
+            const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
+            if (shortsMatch) videoId = shortsMatch[1];
+        }
+
+        if (videoId) {
+            return { type: 'video', id: videoId };
         }
 
         return { type: null, id: null };

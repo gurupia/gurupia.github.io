@@ -8,6 +8,93 @@ const MAX_PROJECTILES = 100;
 const MAX_PARTICLES = 50;
 const collisionSettings = { enabled: true, strength: 0.8 };
 
+// --- IndexedDB Storage Manager ---
+const MascotDB = {
+    dbName: 'MascotStorage',
+    dbVersion: 1,
+    storeName: 'mascots',
+    db: null,
+
+    async init() {
+        if (this.db) return this.db;
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.dbVersion);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                this.db = request.result;
+                resolve(this.db);
+            };
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(this.storeName)) {
+                    db.createObjectStore(this.storeName, { keyPath: 'id' });
+                }
+            };
+        });
+    },
+
+    async save(mascotsData) {
+        try {
+            await this.init();
+            const tx = this.db.transaction(this.storeName, 'readwrite');
+            const store = tx.objectStore(this.storeName);
+            // Clear existing data
+            store.clear();
+            // Save each mascot
+            for (const m of mascotsData) {
+                store.put(m);
+            }
+            return new Promise((resolve, reject) => {
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => reject(tx.error);
+            });
+        } catch (e) {
+            console.error('IndexedDB save error:', e);
+            // Fallback to localStorage (without images to avoid quota)
+            const dataWithoutImages = mascotsData.map(m => ({
+                ...m,
+                image: m.isCustom ? null : m.image
+            }));
+            localStorage.setItem('mascots-data', JSON.stringify(dataWithoutImages));
+            return false;
+        }
+    },
+
+    async load() {
+        try {
+            await this.init();
+            const tx = this.db.transaction(this.storeName, 'readonly');
+            const store = tx.objectStore(this.storeName);
+            const request = store.getAll();
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+        } catch (e) {
+            console.error('IndexedDB load error:', e);
+            return null;
+        }
+    },
+
+    async migrateFromLocalStorage() {
+        const oldData = localStorage.getItem('mascots-data');
+        if (oldData) {
+            try {
+                const parsed = JSON.parse(oldData);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    await this.save(parsed);
+                    localStorage.removeItem('mascots-data');
+                    console.log('Migrated mascot data from LocalStorage to IndexedDB');
+                    return parsed;
+                }
+            } catch (e) {
+                console.error('Migration error:', e);
+            }
+        }
+        return null;
+    }
+};
+
 // Global FX & Audio Settings
 const fxSettings = {
     screenShake: true,
@@ -790,65 +877,35 @@ function setupGlobalMascotUI() {
     const closeMod = document.getElementById('close-mascot-modal');
     if (closeMod) closeMod.addEventListener('click', () => modal.classList.remove('show'));
 
-    const disableCheck = document.getElementById('mascot-disable');
-    if (disableCheck) disableCheck.addEventListener('change', (e) => {
-        const m = getMascotById(selectedMascotId);
-        if (m) { m.isDisabled = e.target.checked; m.updateVisibility(); saveMascotsToStorage(); }
-    });
+    // Helper: Bind checkbox/select to mascot property with auto-save
+    const bindMascotControl = (elementId, handler) => {
+        const el = document.getElementById(elementId);
+        if (el) el.addEventListener('change', (e) => {
+            const m = getMascotById(selectedMascotId);
+            if (m) {
+                handler(m, e);
+                saveMascotsToStorage();
+            }
+        });
+    };
 
-    const noFloatCheck = document.getElementById('mascot-no-float');
-    if (noFloatCheck) noFloatCheck.addEventListener('change', (e) => {
-        const m = getMascotById(selectedMascotId);
-        if (m) { m.isFloatDisabled = e.target.checked; m.updateAnimation(); saveMascotsToStorage(); }
-    });
+    // Mascot property bindings (refactored from duplicate patterns)
+    bindMascotControl('mascot-disable', (m, e) => { m.isDisabled = e.target.checked; m.updateVisibility(); });
+    bindMascotControl('mascot-no-float', (m, e) => { m.isFloatDisabled = e.target.checked; m.updateAnimation(); });
+    bindMascotControl('mascot-effect-3d', (m, e) => { m.is3DEffectEnabled = e.target.checked; m.update3DEffects(); });
+    bindMascotControl('mascot-action-mode', (m, e) => m.setActionMode(e.target.checked));
+    bindMascotControl('mascot-weapon', (m, e) => m.setWeaponType(e.target.value));
+    bindMascotControl('mascot-ai-type', (m, e) => m.setAIType(e.target.value));
 
-    const effect3dCheck = document.getElementById('mascot-effect-3d');
-    if (effect3dCheck) effect3dCheck.addEventListener('change', (e) => {
-        const m = getMascotById(selectedMascotId);
-        if (m) { m.is3DEffectEnabled = e.target.checked; m.update3DEffects(); saveMascotsToStorage(); }
-    });
+    // FX settings (no mascot dependency)
+    const bindFxControl = (elementId, prop) => {
+        const el = document.getElementById(elementId);
+        if (el) el.addEventListener('change', (e) => { fxSettings[prop] = e.target.checked; });
+    };
 
-    const actionCheck = document.getElementById('mascot-action-mode');
-    if (actionCheck) actionCheck.addEventListener('change', (e) => {
-        const m = getMascotById(selectedMascotId);
-        if (m) {
-            m.setActionMode(e.target.checked);
-            saveMascotsToStorage();
-        }
-    });
-
-    const weaponSel = document.getElementById('mascot-weapon');
-    if (weaponSel) weaponSel.addEventListener('change', (e) => {
-        const m = getMascotById(selectedMascotId);
-        if (m) {
-            m.setWeaponType(e.target.value);
-            saveMascotsToStorage();
-        }
-    });
-
-    const aiSel = document.getElementById('mascot-ai-type');
-    if (aiSel) aiSel.addEventListener('change', (e) => {
-        const m = getMascotById(selectedMascotId);
-        if (m) {
-            m.setAIType(e.target.value);
-            saveMascotsToStorage();
-        }
-    });
-
-    const shakeCheck = document.getElementById('fx-screen-shake');
-    if (shakeCheck) shakeCheck.addEventListener('change', (e) => {
-        fxSettings.screenShake = e.target.checked;
-    });
-
-    const particleCheck = document.getElementById('fx-particles');
-    if (particleCheck) particleCheck.addEventListener('change', (e) => {
-        fxSettings.particles = e.target.checked;
-    });
-
-    const soundCheck = document.getElementById('fx-sound');
-    if (soundCheck) soundCheck.addEventListener('change', (e) => {
-        fxSettings.sound = e.target.checked;
-    });
+    bindFxControl('fx-screen-shake', 'screenShake');
+    bindFxControl('fx-particles', 'particles');
+    bindFxControl('fx-sound', 'sound');
 
     const uploadInp = document.getElementById('mascot-upload');
     if (uploadInp) uploadInp.addEventListener('change', (e) => {
@@ -876,11 +933,76 @@ function setupGlobalMascotUI() {
 function generateMascotId() { return 'mascot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); }
 function getMascotById(id) { return mascots.find(m => m.id === id); }
 
+// --- Spatial Partitioning for O(N) Collision Detection ---
+const SpatialGrid = {
+    cellSize: 150, // Cell size in pixels (should be >= max mascot size)
+    grid: new Map(),
+
+    clear() {
+        this.grid.clear();
+    },
+
+    getCellKey(x, y) {
+        const cellX = Math.floor(x / this.cellSize);
+        const cellY = Math.floor(y / this.cellSize);
+        return `${cellX},${cellY}`;
+    },
+
+    insert(mascot) {
+        if (mascot.isDisabled) return;
+        const key = this.getCellKey(mascot.x, mascot.y);
+        if (!this.grid.has(key)) {
+            this.grid.set(key, []);
+        }
+        this.grid.get(key).push(mascot);
+    },
+
+    getNearby(mascot) {
+        const nearby = [];
+        const cellX = Math.floor(mascot.x / this.cellSize);
+        const cellY = Math.floor(mascot.y / this.cellSize);
+
+        // Check current cell and 8 adjacent cells
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const key = `${cellX + dx},${cellY + dy}`;
+                if (this.grid.has(key)) {
+                    nearby.push(...this.grid.get(key));
+                }
+            }
+        }
+        return nearby;
+    }
+};
+
 function checkAllCollisions() {
     if (!collisionSettings.enabled || mascots.length < 2) return;
-    for (let i = 0; i < mascots.length; i++) {
-        for (let j = i + 1; j < mascots.length; j++) {
-            if (mascots[i].checkCollisionWith(mascots[j])) mascots[i].handleCollision(mascots[j]);
+
+    // Use spatial partitioning for better performance
+    SpatialGrid.clear();
+
+    // Insert all mascots into grid
+    for (const m of mascots) {
+        SpatialGrid.insert(m);
+    }
+
+    // Check collisions only with nearby mascots
+    const checked = new Set();
+    for (const m of mascots) {
+        if (m.isDisabled) continue;
+
+        const nearby = SpatialGrid.getNearby(m);
+        for (const other of nearby) {
+            if (other === m || other.isDisabled) continue;
+
+            // Avoid checking same pair twice
+            const pairKey = m.id < other.id ? `${m.id}-${other.id}` : `${other.id}-${m.id}`;
+            if (checked.has(pairKey)) continue;
+            checked.add(pairKey);
+
+            if (m.checkCollisionWith(other)) {
+                m.handleCollision(other);
+            }
         }
     }
 }
@@ -905,42 +1027,56 @@ function removeMascot(id) {
 }
 
 function saveMascotsToStorage() {
-    localStorage.setItem('mascots-data', JSON.stringify(mascots.map(m => ({
+    const data = mascots.map(m => ({
         id: m.id, image: m.currentImage, isCustom: m.isCustom, size: m.size,
         x: m.x, y: m.y, vx: m.vx, vy: m.vy, disabled: m.isDisabled,
         noFloat: m.isFloatDisabled, effect3d: m.is3DEffectEnabled,
         actionMode: m.isActionModeEnabled, weaponType: m.weaponType,
         aiType: m.aiType
-    }))));
+    }));
+    // Save asynchronously to IndexedDB
+    MascotDB.save(data).catch(e => console.error('Failed to save mascots:', e));
 }
 
-function loadMascotsFromStorage() {
+async function loadMascotsFromStorage() {
     isLoadingMascots = true;
     // Clear existing
     mascots.forEach(m => m.destroy());
     mascots = [];
 
-    const data = localStorage.getItem('mascots-data');
-    if (data) {
-        try {
-            const parsed = JSON.parse(data);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                parsed.forEach(d => addMascot(d, true));
-            } else {
-                addMascot({});
-            }
-        } catch (e) {
-            console.error('Mascot load error:', e);
+    try {
+        // Try IndexedDB first
+        let data = await MascotDB.load();
+
+        // If IndexedDB is empty, try migrating from LocalStorage
+        if (!data || data.length === 0) {
+            data = await MascotDB.migrateFromLocalStorage();
+        }
+
+        if (data && Array.isArray(data) && data.length > 0) {
+            data.forEach(d => addMascot(d, true));
+        } else {
             addMascot({});
         }
-    } else {
+    } catch (e) {
+        console.error('Mascot load error:', e);
         addMascot({});
     }
+
     if (mascots.length > 0) selectedMascotId = mascots[0].id;
     isLoadingMascots = false;
 }
 
+let isPageVisible = true;
+let animationFrameId = null;
+
 function globalUpdate() {
+    // Skip updates when page is not visible (saves CPU/battery)
+    if (!isPageVisible) {
+        animationFrameId = requestAnimationFrame(globalUpdate);
+        return;
+    }
+
     if (projectiles.length > MAX_PROJECTILES) {
         const toRemove = projectiles.length - MAX_PROJECTILES;
         for (let i = 0; i < toRemove; i++) {
@@ -961,8 +1097,15 @@ function globalUpdate() {
         if (!m.isDisabled) m.updatePosition();
     });
     checkAllCollisions();
-    requestAnimationFrame(globalUpdate);
+    animationFrameId = requestAnimationFrame(globalUpdate);
 }
+
+// Pause animations when page is hidden (tab switch, minimize)
+document.addEventListener('visibilitychange', () => {
+    isPageVisible = !document.hidden;
+    // Notify Matrix Rain (if exists) via custom event
+    window.dispatchEvent(new CustomEvent('pageVisibilityChange', { detail: { visible: isPageVisible } }));
+});
 
 let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
 window.addEventListener('mousemove', (e) => {
@@ -971,8 +1114,8 @@ window.addEventListener('mousemove', (e) => {
 });
 
 // BOOTSTRAP
-function initMascotSystem() {
-    loadMascotsFromStorage();
+async function initMascotSystem() {
+    await loadMascotsFromStorage();
     setupGlobalMascotUI();
 
     // Global Event Cleanup (Firefox Safety)

@@ -1,4 +1,4 @@
-\const canvas = document.getElementById('canvas');
+const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const imgInput = document.getElementById('imageInput');
 const urlInput = document.getElementById('urlInput');
@@ -27,6 +27,22 @@ let state = {
     intensity: 1.0,
     format: 'webp'
 };
+
+// Allowed animation types (whitelist for CSS injection prevention)
+const ALLOWED_ANIMS = ['breath', 'float', 'jump', 'shake', 'squash', 'spin'];
+const ALLOWED_FORMATS = ['webp', 'gif', 'webm', 'webm_hq', 'sprite'];
+
+// Sanitize animation name for safe CSS output
+function sanitizeAnimName(name) {
+    if (ALLOWED_ANIMS.includes(name)) return name;
+    return 'breath'; // fallback
+}
+
+// Validate numeric value
+function sanitizeNumber(val) {
+    const num = parseFloat(val);
+    return isNaN(num) ? 0 : num;
+}
 
 // Check for file:// protocol
 const isFileProtocol = window.location.protocol === 'file:';
@@ -73,7 +89,8 @@ function loadImage(src) {
         recordingStatus.textContent = "Image loaded!";
     };
     mediaSource.onerror = () => {
-        alert("Failed to load Image! Check URL or CORS policy.");
+        recordingStatus.textContent = "⚠️ Failed to load image. Check URL or CORS policy.";
+        recordingStatus.style.color = '#ff6b6b';
     };
 }
 
@@ -94,7 +111,8 @@ function loadVideo(src) {
         recordingStatus.textContent = "Video loaded!";
     };
     mediaSource.onerror = () => {
-        alert("Failed to load Video! Check URL or CORS policy.");
+        recordingStatus.textContent = "⚠️ Failed to load video. Check URL or CORS policy.";
+        recordingStatus.style.color = '#ff6b6b';
     };
 }
 
@@ -104,8 +122,10 @@ function fitCanvasToSource() {
 }
 
 // --- Updates ---
-animSelect.addEventListener('change', (e) => state.anim = e.target.value);
-exportSelect.addEventListener('change', (e) => state.format = e.target.value);
+animSelect.addEventListener('change', (e) => state.anim = sanitizeAnimName(e.target.value));
+exportSelect.addEventListener('change', (e) => {
+    state.format = ALLOWED_FORMATS.includes(e.target.value) ? e.target.value : 'webp';
+});
 speedRange.addEventListener('input', (e) => {
     state.speed = parseFloat(e.target.value);
     document.getElementById('speedVal').textContent = state.speed.toFixed(1) + 'x';
@@ -194,12 +214,17 @@ let mediaRecorder;
 let recordedChunks = [];
 
 recordBtn.addEventListener('click', async () => {
-    if (!isSourceLoaded) return alert('Please load an image or video first!');
+    if (!isSourceLoaded) {
+        recordingStatus.textContent = "⚠️ Please load an image or video first!";
+        recordingStatus.style.color = '#ff6b6b';
+        return;
+    }
 
     // Security Check for FFmpeg (WebP/GIF)
     if (state.format !== 'webm') {
         if (isFileProtocol) {
-            alert('⚠️ Security Restriction:\nFFmpeg cannot run on file:// protocol because SharedArrayBuffer is blocked.\nRun on localhost to use WebP/GIF export.\n\nFalling back to WebM.');
+            recordingStatus.textContent = "⚠️ Security: file:// protocol blocked. Use localhost for WebP/GIF. Falling back to WebM.";
+            recordingStatus.style.color = '#ffaa00';
             state.format = 'webm';
             exportSelect.value = 'webm';
         } else if (!ffmpeg.isLoaded()) {
@@ -208,7 +233,8 @@ recordBtn.addEventListener('click', async () => {
                 await ffmpeg.load();
             } catch (e) {
                 console.error(e);
-                alert('⚠️ FFmpeg Load Failed!\n\nReason: SharedArrayBuffer is likely blocked.\n\nSolution:\n1. Run "python server.py" (included in repo).\n2. Reload this page.\n\nFalling back to WebM (Black background in some players).');
+                recordingStatus.textContent = "⚠️ FFmpeg failed. Run 'python server.py' and reload. Falling back to WebM.";
+                recordingStatus.style.color = '#ffaa00';
                 state.format = 'webm';
                 exportSelect.value = 'webm';
             }
@@ -304,7 +330,8 @@ async function recordFrameSequence() {
 
     } catch (e) {
         console.error(e);
-        alert("Recording Failed: " + e.message);
+        recordingStatus.textContent = "⚠️ Recording failed: " + e.message;
+        recordingStatus.style.color = '#ff6b6b';
     } finally {
         time = originalTime; // Restore
         isRecording = false;
@@ -478,43 +505,42 @@ async function convertFramesToOutput(frames, format, fps) {
             previewDiv.style.backgroundRepeat = 'no-repeat';
 
             // We need to inject the keyframes into the document to animate firmly
-            // Calculate step distance
-            const finalPos = -totalWidth;
+            // Calculate step distance (sanitized for safety)
+            const finalPos = sanitizeNumber(-totalWidth);
+            const safeFrameCount = sanitizeNumber(frames.length);
+            const safeDuration = sanitizeNumber(duration);
+            const safeAnim = sanitizeAnimName(state.anim);
 
-            // Create a unique name for this animation run
+            // Create a unique name for this animation run (only alphanumeric + underscore)
             const animName = `play_${Date.now()}`;
             const styleEl = document.createElement('style');
-            styleEl.innerHTML = `
-                @keyframes ${animName} {
-                    100% { background-position: ${finalPos}px 0; }
-                }
-            `;
+            styleEl.textContent = `@keyframes ${animName} { 100% { background-position: ${finalPos}px 0; } }`;
             document.head.appendChild(styleEl);
 
-            previewDiv.style.animation = `${animName} ${duration}s steps(${frames.length}) infinite`;
+            previewDiv.style.animation = `${animName} ${safeDuration}s steps(${safeFrameCount}) infinite`;
 
             // Scale down preview if too big
             const scale = Math.min(300 / 512, 1);
             previewDiv.style.transform = `scale(${scale})`;
 
-            // 5. Generate CSS
-            // duration is already calculated above
+            // 5. Generate CSS (with sanitized values)
+            const safeTotalWidth = sanitizeNumber(totalWidth);
             const cssCode = `.mascot {
     width: 512px;
     height: 512px;
-    background: url('mascot_${state.anim}.png') no-repeat;
-    animation: play_${state.anim} ${duration}s steps(${frames.length}) infinite;
+    background: url('mascot_${safeAnim}.png') no-repeat;
+    animation: play_${safeAnim} ${safeDuration}s steps(${safeFrameCount}) infinite;
 }
 
-@keyframes play_${state.anim} {
-    100% { background-position: -${totalWidth}px 0; }
+@keyframes play_${safeAnim} {
+    100% { background-position: -${safeTotalWidth}px 0; }
 }`;
             document.getElementById('cssOutput').value = cssCode;
             document.getElementById('cssOutputContainer').style.display = 'block';
 
             // Download Link
             downloadLink.href = url;
-            downloadLink.download = `mascot_${state.anim}.png`;
+            downloadLink.download = `mascot_${safeAnim}.png`;
             downloadLink.textContent = '⬇️ Download Sprite PNG';
 
         }, 'image/png');

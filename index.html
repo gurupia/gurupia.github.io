@@ -1074,7 +1074,31 @@
       }
     }
 
-    setInterval(drawMatrix, 35);
+    // Matrix Rain with visibility-aware rendering
+    let matrixIntervalId = setInterval(drawMatrix, 35);
+    let isMatrixPaused = false;
+
+    // Listen for page visibility changes (from mascot.js)
+    window.addEventListener('pageVisibilityChange', (e) => {
+      if (e.detail.visible && isMatrixPaused) {
+        matrixIntervalId = setInterval(drawMatrix, 35);
+        isMatrixPaused = false;
+      } else if (!e.detail.visible && !isMatrixPaused) {
+        clearInterval(matrixIntervalId);
+        isMatrixPaused = true;
+      }
+    });
+
+    // Also handle direct visibility change for standalone usage
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && !isMatrixPaused) {
+        clearInterval(matrixIntervalId);
+        isMatrixPaused = true;
+      } else if (!document.hidden && isMatrixPaused) {
+        matrixIntervalId = setInterval(drawMatrix, 35);
+        isMatrixPaused = false;
+      }
+    });
 
     // Initialize matrix color
     updateMatrixColor(savedTheme);
